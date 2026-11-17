@@ -20,6 +20,7 @@ single ~2 MB Win32 executable written in Go: the window is ready in **~150 ms**.
 ## Features
 
 - Split view: raw Markdown on the left, live rendered preview on the right.
+- Scroll sync: scrolling the preview moves the source to the matching part of the document.
 - Rendered preview: headings, lists, tables, block quotes, fenced code, links,
   inline code, YAML front matter as a metadata card.
 - Inline images: `![alt](picture.png)` renders in the preview. PNG is embedded

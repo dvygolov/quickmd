@@ -1,5 +1,6 @@
 param(
-  [Parameter(Mandatory = $true)][string]$Source
+  [Parameter(Mandatory = $true)][string]$Source,
+  [switch]$Quiet
 )
 
 $ErrorActionPreference = 'Stop'
@@ -53,5 +54,7 @@ try {
 } catch { }
 Write-Output "current .md user choice: $userChoice"
 
-Start-Process 'ms-settings:defaultapps?registeredAppUser=QuickMD'
-Write-Output 'opened Windows Default Apps for QuickMD'
+if (-not $Quiet) {
+  Start-Process 'ms-settings:defaultapps?registeredAppUser=QuickMD'
+  Write-Output 'opened Windows Default Apps for QuickMD'
+}

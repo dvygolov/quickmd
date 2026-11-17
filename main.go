@@ -35,8 +35,6 @@ type clipState struct {
 }
 
 var (
-	docDir string
-
 	hwndMain uintptr
 	hCode    uintptr
 	hPreview uintptr
@@ -44,6 +42,8 @@ var (
 	wndProcPtr  uintptr
 	editProcPtr uintptr
 	oldEditProc uintptr
+	previewProcPtr uintptr
+	oldPreviewProc uintptr
 
 	filePath   string
 	isDirty    bool
@@ -99,6 +99,7 @@ func main() {
 
 	wndProcPtr = syscall.NewCallback(wndProc)
 	editProcPtr = syscall.NewCallback(editWndProc)
+	previewProcPtr = syscall.NewCallback(previewWndProc)
 
 	cursor, _, _ := pLoadCursorW.Call(0, IDC_IBEAM)
 	icon, _, _ := pLoadIconW.Call(hInstance, 1)
@@ -169,6 +170,7 @@ func setup() {
 	if dpi < 96 {
 		dpi = 96
 	}
+	docDPI = int(dpi)
 	monoPt := int(11 * dpi / 72)
 	uiPt := int(12 * dpi / 72)
 
@@ -193,6 +195,7 @@ func setup() {
 	sendMsg(hPreview, EM_SETEVENTMASK, 0, 0)
 
 	oldEditProc = setWindowLongPtr(hCode, GWLP_WNDPROC, editProcPtr)
+	oldPreviewProc = setWindowLongPtr(hPreview, GWLP_WNDPROC, previewProcPtr)
 
 	name, _, _ := pRegisterClipboardFormatW.Call(uintptr(unsafe.Pointer(utf16Ptr("Rich Text Format"))))
 	rtfFormat = name
@@ -314,6 +317,46 @@ func editWndProc(hwnd, msg, wp, lp uintptr) uintptr {
 	}
 	r, _, _ := pCallWindowProcW.Call(oldEditProc, hwnd, msg, wp, lp)
 	return r
+}
+
+func previewWndProc(hwnd, msg, wp, lp uintptr) uintptr {
+	r, _, _ := pCallWindowProcW.Call(oldPreviewProc, hwnd, msg, wp, lp)
+	switch msg {
+	case WM_VSCROLL, WM_MOUSEWHEEL, WM_KEYDOWN:
+		dbg("preview scroll msg=%#x", msg)
+		syncPreviewToSource()
+	}
+	return r
+}
+
+func firstVisibleLine(h uintptr) int {
+	r, _, _ := pSendMessageW.Call(h, uintptr(EM_GETFIRSTVISIBLELINE), 0, 0)
+	return int(int32(r))
+}
+
+func lineCount(h uintptr) int {
+	r, _, _ := pSendMessageW.Call(h, uintptr(EM_GETLINECOUNT), 0, 0)
+	return int(int32(r))
+}
+
+func syncPreviewToSource() {
+	prevTotal := lineCount(hPreview)
+	srcTotal := lineCount(hCode)
+	if prevTotal <= 1 || srcTotal <= 1 {
+		return
+	}
+	frac := float64(firstVisibleLine(hPreview)) / float64(prevTotal-1)
+	if frac < 0 {
+		frac = 0
+	}
+	if frac > 1 {
+		frac = 1
+	}
+	target := int(frac * float64(srcTotal-1))
+	delta := target - firstVisibleLine(hCode)
+	if delta != 0 {
+		pSendMessageW.Call(hCode, uintptr(EM_LINESCROLL), 0, uintptr(int64(delta)))
+	}
 }
 
 func layout(hwnd uintptr) {

@@ -15,6 +15,11 @@ import (
 	"strings"
 )
 
+var (
+	docDir string
+	docDPI = 96
+)
+
 const (
 	colText    = 1
 	colDim     = 2
@@ -73,7 +78,13 @@ func renderBlock(b *bytes.Buffer, blk Block) {
 		b.WriteString(`\b0\par`)
 
 	case BlockParagraph:
-		b.WriteString(`\pard\sa150\sl276\slmult1\f0\fs22\cf1 `)
+		if strings.Contains(blk.Text, "![") {
+			// A picture line must not inherit the 1.38 line spacing: RichEdit
+			// would reserve that extra height below the image.
+			b.WriteString(`\pard\sa150\slmult0\f0\fs22\cf1 `)
+		} else {
+			b.WriteString(`\pard\sa150\sl276\slmult1\f0\fs22\cf1 `)
+		}
 		writeInline(b, blk.Text, 22)
 		b.WriteString(`\par`)
 
@@ -409,13 +420,18 @@ func writeImage(b *bytes.Buffer, url string) bool {
 		data = pngBuf.Bytes()
 	}
 	w, h := cfg.Width, cfg.Height
-	const maxW = 560
+	const maxW = 640
 	if w > maxW {
 		h = h * maxW / w
 		w = maxW
 	}
+	dpi := docDPI
+	if dpi <= 0 {
+		dpi = 96
+	}
+	tw := func(px int) int { return px * 1440 / dpi }
 	var pic bytes.Buffer
-	fmt.Fprintf(&pic, `{\pict%s\picw%d\pich%d\picwgoal%d\pichgoal%d `, blip, cfg.Width, cfg.Height, w*15, h*15)
+	fmt.Fprintf(&pic, `{\pict%s\picw%d\pich%d\picwgoal%d\pichgoal%d `, blip, w, h, tw(w), tw(h))
 	pic.WriteString(hex.EncodeToString(data))
 	pic.WriteString(`}`)
 	imgCache[path] = imgCacheEntry{rtf: pic.String(), mod: st.ModTime().UnixNano(), size: st.Size()}

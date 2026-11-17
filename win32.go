@@ -33,6 +33,7 @@ var (
 	pKillTimer          = user32.NewProc("KillTimer")
 	pGetClientRect      = user32.NewProc("GetClientRect")
 	pGetWindowRect      = user32.NewProc("GetWindowRect")
+	pGetScrollInfo      = user32.NewProc("GetScrollInfo")
 	pMoveWindow         = user32.NewProc("MoveWindow")
 	pGetKeyState        = user32.NewProc("GetKeyState")
 	pSetFocus           = user32.NewProc("SetFocus")
@@ -100,6 +101,8 @@ const (
 	WM_ACTIVATE   = 0x0006
 	WM_NOTIFY     = 0x004E
 	WM_CHAR       = 0x0102
+	WM_VSCROLL    = 0x0115
+	WM_MOUSEWHEEL = 0x020A
 	WM_KEYUP      = 0x0101
 	WM_SETICON    = 0x0080
 	WM_CLOSE     = 0x0010
@@ -138,6 +141,7 @@ const (
 	EM_SETUNDOLIMIT       = 0x0400 + 82
 	EM_SETPARAFORMAT      = 0x0400 + 71
 	EM_LINEFROMCHAR       = 0x00C9
+	EM_GETLINECOUNT       = 0x00BA
 	EM_EXGETSEL           = 0x0400 + 52
 	EM_REPLACESEL         = 0x00C2
 	WM_PASTE              = 0x0302
@@ -239,6 +243,16 @@ type CHARFORMAT2W struct {
 	BAnimation      uint8
 	BRevAuthor      uint8
 	BReserved1      uint8
+}
+
+type SCROLLINFO struct {
+	CbSize    uint32
+	FMask     uint32
+	NMin      int32
+	NMax      int32
+	NPage     uint32
+	NPos      int32
+	NTrackPos int32
 }
 
 type PARAFORMAT2 struct {
