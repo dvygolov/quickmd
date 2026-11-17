@@ -38,14 +38,15 @@ const (
 	stStrike  = 17
 	stList    = 18
 	stMark    = 19
+	stHidden  = 20
 )
 
 var styleDefs = map[int]styleDef{
 	stBody:    {"Segoe UI", 240, rgb(0xD4, 0xD4, 0xD4), false, false, false},
-	stH1:      {"Segoe UI", 520, rgb(0xF0, 0xF0, 0xF0), true, false, false},
-	stH2:      {"Segoe UI", 400, rgb(0xF0, 0xF0, 0xF0), true, false, false},
-	stH3:      {"Segoe UI", 320, rgb(0xF0, 0xF0, 0xF0), true, false, false},
-	stH4:      {"Segoe UI", 280, rgb(0xF0, 0xF0, 0xF0), true, false, false},
+	stH1:      {"Segoe UI", 480, rgb(0xFF, 0xFF, 0xFF), true, false, false},
+	stH2:      {"Segoe UI", 400, rgb(0xFF, 0xFF, 0xFF), true, false, false},
+	stH3:      {"Segoe UI", 320, rgb(0xFF, 0xFF, 0xFF), true, false, false},
+	stH4:      {"Segoe UI", 280, rgb(0xFF, 0xFF, 0xFF), true, false, false},
 	stCode:    {"Consolas", 200, rgb(0xCE, 0x91, 0x78), false, false, false},
 	stBold:    {"Segoe UI", 240, rgb(0xD4, 0xD4, 0xD4), true, false, false},
 	stItalic:  {"Segoe UI", 240, rgb(0xD4, 0xD4, 0xD4), false, true, false},
@@ -59,7 +60,8 @@ var styleDefs = map[int]styleDef{
 	stSpoiler: {"Segoe UI", 240, rgb(0x90, 0x90, 0x98), false, true, false},
 	stStrike:  {"Segoe UI", 240, rgb(0x90, 0x90, 0x98), false, false, false},
 	stList:    {"Segoe UI", 240, rgb(0xE0, 0xB1, 0x69), true, false, false},
-	stMark:    {"Segoe UI", 140, rgb(0x60, 0x60, 0x68), false, false, false},
+	stMark:    {"Segoe UI", 160, rgb(0x5A, 0x5A, 0x60), false, false, false},
+	stHidden:  {"Segoe UI", 20, rgb(0x23, 0x23, 0x26), false, false, false},
 }
 
 type styleSpan struct {
@@ -68,15 +70,18 @@ type styleSpan struct {
 }
 
 func applyStyles(h uintptr, src string) {
+	caretLine := caretLineOf(h)
+	_ = caretLine
 	var sel CHARRANGE
 	sendMsg(h, EM_EXGETSEL, 0, uintptr(unsafe.Pointer(&sel)))
 	first, _, _ := pSendMessageW.Call(h, uintptr(EM_GETFIRSTVISIBLELINE), 0, 0)
 	pSendMessageW.Call(h, WM_SETREDRAW, 0, 0)
 
 	applyCharFormat(h, 0, 1<<30, stBody)
-	for _, sp := range buildStyleSpans(src) {
+	for _, sp := range buildStyleSpans(src, caretLine) {
 		applyCharFormat(h, sp.start, sp.end, sp.style)
 	}
+	applyParagraphs(h, src)
 
 	cr := CHARRANGE{CpMin: sel.CpMin, CpMax: sel.CpMax}
 	sendMsg(h, EM_EXSETSEL, 0, uintptr(unsafe.Pointer(&cr)))
@@ -113,10 +118,14 @@ func applyCharFormat(h uintptr, start, end int, st int) {
 	if def.underline {
 		cf.DwEffects |= CFE_UNDERLINE
 	}
+	if st == stCode || st == stKey || st == stValue || st == stFmDim {
+		cf.DwMask |= CFM_BACKCOLOR
+		cf.CrBackColor = uint32(rgb(0x2B, 0x2B, 0x31))
+	}
 	sendMsg(h, EM_SETCHARFORMAT, SCF_SELECTION, uintptr(unsafe.Pointer(&cf)))
 }
 
-func buildStyleSpans(src string) []styleSpan {
+func buildStyleSpans(src string, caretLine int) []styleSpan {
 	lines := strings.Split(src, "\n")
 	var out []styleSpan
 	pos := 0
@@ -143,7 +152,7 @@ func buildStyleSpans(src string) []styleSpan {
 		case inCode:
 			out = append(out, styleSpan{start, start + u16len(line), stCode})
 		default:
-			out = append(out, lineStyleSpans(line, pos)...)
+			out = append(out, lineStyleSpans(line, pos, i, caretLine)...)
 		}
 
 		pos += u16len(line) + 1
@@ -163,7 +172,7 @@ func frontStyleSpans(line string, base int) []styleSpan {
 	return out
 }
 
-func lineStyleSpans(line string, base int) []styleSpan {
+func lineStyleSpans(line string, base int, lineIdx, caretLine int) []styleSpan {
 	var out []styleSpan
 	end := base + u16len(line)
 
@@ -199,11 +208,11 @@ func lineStyleSpans(line string, base int) []styleSpan {
 		}
 	}
 
-	out = append(out, inlineStyleSpans(line, base)...)
+	out = append(out, inlineStyleSpans(line, base, lineIdx, caretLine)...)
 	return out
 }
 
-func inlineStyleSpans(line string, base int) []styleSpan {
+func inlineStyleSpans(line string, base int, lineIdx, caretLine int) []styleSpan {
 	r := []rune(line)
 	pre := make([]int, len(r)+1)
 	for i, ch := range r {
@@ -220,52 +229,52 @@ func inlineStyleSpans(line string, base int) []styleSpan {
 		switch {
 		case r[i] == '`':
 			if j := indexRune(r, i+1, '`'); j > i {
-				add(i, i+1, stDim)
+				add(i, i+1, markerStyle(caretLine, lineIdx))
 				add(i+1, j, stCode)
-				add(j, j+1, stDim)
+				add(j, j+1, markerStyle(caretLine, lineIdx))
 				i = j
 			}
 		case r[i] == '*' && i+1 < len(r) && r[i+1] == '*':
 			if j := indexSeq(r, i+2, "**"); j > i+2 {
-				add(i, i+2, stDim)
+				add(i, i+2, markerStyle(caretLine, lineIdx))
 				add(i+2, j, stBold)
-				add(j, j+2, stDim)
+				add(j, j+2, markerStyle(caretLine, lineIdx))
 				i = j + 1
 			}
 		case r[i] == '_' && i+1 < len(r) && r[i+1] == '_':
 			if j := indexSeq(r, i+2, "__"); j > i+2 {
-				add(i, i+2, stDim)
+				add(i, i+2, markerStyle(caretLine, lineIdx))
 				add(i+2, j, stUnder)
-				add(j, j+2, stDim)
+				add(j, j+2, markerStyle(caretLine, lineIdx))
 				i = j + 1
 			}
 		case r[i] == '*' || r[i] == '_':
 			if j := indexRune(r, i+1, r[i]); j > i+1 {
-				add(i, i+1, stDim)
+				add(i, i+1, markerStyle(caretLine, lineIdx))
 				add(i+1, j, stItalic)
-				add(j, j+1, stDim)
+				add(j, j+1, markerStyle(caretLine, lineIdx))
 				i = j
 			}
 		case r[i] == '~' && i+1 < len(r) && r[i+1] == '~':
 			if j := indexSeq(r, i+2, "~~"); j > i+2 {
-				add(i, i+2, stDim)
+				add(i, i+2, markerStyle(caretLine, lineIdx))
 				add(i+2, j, stStrike)
-				add(j, j+2, stDim)
+				add(j, j+2, markerStyle(caretLine, lineIdx))
 				i = j + 1
 			}
 		case r[i] == '|' && i+1 < len(r) && r[i+1] == '|':
 			if j := indexSeq(r, i+2, "||"); j > i+2 {
-				add(i, i+2, stDim)
+				add(i, i+2, markerStyle(caretLine, lineIdx))
 				add(i+2, j, stSpoiler)
-				add(j, j+2, stDim)
+				add(j, j+2, markerStyle(caretLine, lineIdx))
 				i = j + 1
 			}
 		case r[i] == '[':
 			if j := indexSeq(r, i+1, "]("); j > 0 {
 				if k := indexRune(r, j+2, ')'); k > j {
-					add(i, i+1, stDim)
+					add(i, i+1, markerStyle(caretLine, lineIdx))
 					add(i+1, j, stLink)
-					add(j, k+1, stDim)
+					add(j, k+1, markerStyle(caretLine, lineIdx))
 					i = k
 				}
 			}
@@ -277,6 +286,20 @@ func inlineStyleSpans(line string, base int) []styleSpan {
 		}
 	}
 	return out
+}
+
+func caretLineOf(h uintptr) int {
+	var cr CHARRANGE
+	sendMsg(h, EM_EXGETSEL, 0, uintptr(unsafe.Pointer(&cr)))
+	line, _, _ := pSendMessageW.Call(h, uintptr(EM_LINEFROMCHAR), uintptr(cr.CpMin), 0)
+	return int(int32(line))
+}
+
+func markerStyle(caretLine, line int) int {
+	if caretLine == line {
+		return stMark
+	}
+	return stHidden
 }
 
 func u16len(s string) int {
@@ -311,4 +334,79 @@ func indexSeq(r []rune, from int, s string) int {
 		}
 	}
 	return -1
+}
+
+const (
+	pfmStartIndent = 0x0001
+	pfmOffset      = 0x0004
+	pfmSpaceBefore = 0x0040
+	pfmSpaceAfter  = 0x0080
+	pfmLineSpacing = 0x0100
+)
+
+func applyParagraphs(h uintptr, src string) {
+	lines := strings.Split(src, "\n")
+	pos := 0
+	inFront := false
+	inCode := false
+
+	for i, line := range lines {
+		ll := u16len(line)
+		start := pos
+		end := pos + ll
+		trim := strings.TrimSpace(line)
+
+		var pf PARAFORMAT2
+		pf.CbSize = uint32(unsafe.Sizeof(pf))
+		pf.DwMask = pfmSpaceBefore | pfmSpaceAfter
+		pf.DySpaceAfter = 90
+
+		switch {
+		case i == 0 && trim == "---":
+			inFront = true
+			pf.DwMask |= pfmSpaceBefore | pfmSpaceAfter
+			pf.DySpaceBefore = 0
+			pf.DySpaceAfter = 0
+		case inFront && (trim == "---" || trim == "..."):
+			inFront = false
+			pf.DySpaceBefore = 0
+			pf.DySpaceAfter = 100
+		case inFront:
+			pf.DySpaceBefore = 0
+			pf.DySpaceAfter = 0
+		case strings.HasPrefix(trim, "```"):
+			inCode = !inCode
+			pf.DySpaceAfter = 0
+			pf.DwMask |= pfmStartIndent
+			pf.DxStartIndent = 240
+		case inCode:
+			pf.DySpaceAfter = 0
+			pf.DwMask |= pfmStartIndent
+			pf.DxStartIndent = 240
+		default:
+			if headingRe.MatchString(line) {
+				pf.DySpaceBefore = 140
+				pf.DySpaceAfter = 50
+			} else if quoteRe.MatchString(line) {
+				pf.DwMask |= pfmStartIndent
+				pf.DxStartIndent = 360
+			} else if listRe.MatchString(line) {
+				pf.DwMask |= pfmStartIndent | pfmOffset
+				pf.DxStartIndent = 300
+				pf.DxOffset = -180
+				pf.DySpaceAfter = 30
+			} else if hrRe.MatchString(line) {
+				pf.DySpaceBefore = 120
+				pf.DySpaceAfter = 120
+			}
+		}
+
+		if end > start {
+			cr := CHARRANGE{CpMin: int32(start), CpMax: int32(end + 1)}
+			sendMsg(h, EM_EXSETSEL, 0, uintptr(unsafe.Pointer(&cr)))
+			sendMsg(h, EM_SETPARAFORMAT, 0, uintptr(unsafe.Pointer(&pf)))
+		}
+
+		pos += ll + 1
+	}
 }

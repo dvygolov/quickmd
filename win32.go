@@ -136,6 +136,8 @@ const (
 	EM_SETSEL             = 0x00B1
 	EM_SETRECT            = 0x00B3
 	EM_SETUNDOLIMIT       = 0x0400 + 82
+	EM_SETPARAFORMAT      = 0x0400 + 71
+	EM_LINEFROMCHAR       = 0x00C9
 	EM_EXGETSEL           = 0x0400 + 52
 	EM_REPLACESEL         = 0x00C2
 	WM_PASTE              = 0x0302
@@ -154,6 +156,7 @@ const (
 	CFM_COLOR    = 0x40000000
 	CFM_CHARSET  = 0x08000000
 	CFM_WEIGHT   = 0x00400000
+	CFM_BACKCOLOR = 0x04000000
 
 	CFE_BOLD      = 0x0001
 	CFE_ITALIC    = 0x0002
@@ -236,6 +239,33 @@ type CHARFORMAT2W struct {
 	BAnimation      uint8
 	BRevAuthor      uint8
 	BReserved1      uint8
+}
+
+type PARAFORMAT2 struct {
+	CbSize          uint32
+	DwMask          uint32
+	WNumbering      uint16
+	WEffects        uint16
+	DxStartIndent   int32
+	DxRightIndent   int32
+	DxOffset        int32
+	WAlignment      uint16
+	CTabCount       int16
+	RgxTabs         [32]int32
+	DySpaceBefore   int32
+	DySpaceAfter    int32
+	DyLineSpacing   int32
+	SStyle          int16
+	BLineSpacingRule uint8
+	BOutlineLevel   uint8
+	WShadingWeight  uint16
+	WShadingStyle   uint16
+	WNumberingStart uint16
+	WNumberingStyle uint16
+	WNumberingTab   uint16
+	WBorderSpace    uint16
+	WBorderWidth    uint16
+	WBorders        uint16
 }
 
 type CHARRANGE struct {

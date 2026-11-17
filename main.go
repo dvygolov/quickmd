@@ -38,6 +38,7 @@ var (
 	savedText  string
 	dirtySince time.Time
 	lastEdit   time.Time
+	lastCaretLine int = -1
 
 	undoStack []snapshot
 	redoStack []snapshot
@@ -88,7 +89,7 @@ func main() {
 	if icon == 0 {
 		icon, _, _ = pLoadIconW.Call(0, IDI_APPLICATION)
 	}
-	brush, _, _ := pCreateSolidBrush.Call(rgb(30, 30, 32))
+	brush, _, _ := pCreateSolidBrush.Call(rgb(35, 35, 38))
 
 	wc := WNDCLASSEX{
 		CbSize:        uint32(unsafe.Sizeof(WNDCLASSEX{})),
@@ -159,7 +160,7 @@ func setup() {
 	sendMsg(hEdit, WM_SETFONT, font, 1)
 	setDefaultFormat(hEdit, "Segoe UI", pt, rgb(212, 212, 212))
 
-	sendMsg(hEdit, EM_SETBKGNDCOLOR, 0, rgb(30, 30, 32))
+	sendMsg(hEdit, EM_SETBKGNDCOLOR, 0, rgb(35, 35, 38))
 	sendMsg(hEdit, EM_AUTOURLDETECT, 0, 0)
 	sendMsg(hEdit, EM_SETOPTIONS, ECO_AUTOVSCROLL, ECO_AUTOVSCROLL)
 	sendMsg(hEdit, EM_SETEVENTMASK, ENM_CHANGE, 0)
@@ -289,8 +290,8 @@ func layout(hwnd uintptr) {
 	}
 	pMoveWindow.Call(hEdit, 0, 0, uintptr(w), uintptr(h), 1)
 	margin := int32(56)
-	if w > 980 {
-		margin = (w - 820) / 2
+	if w > 1180 {
+		margin = (w - 1080) / 2
 	}
 	rect := RECT{Left: margin, Top: 40, Right: w - margin, Bottom: h - 28}
 	sendMsg(hEdit, EM_SETRECT, 0, uintptr(unsafe.Pointer(&rect)))
@@ -311,6 +312,7 @@ func loadFile() {
 	lastSeen = text
 	savedText = text
 	lastEdit = time.Now()
+	lastCaretLine = -1
 	isDirty = false
 	undoStack = nil
 	redoStack = nil
@@ -418,17 +420,21 @@ func saveFile() {
 
 func pollText() {
 	txt := getText(hEdit)
-	if txt != lastSeen {
-		if time.Since(lastEdit) > 700*time.Millisecond {
-			pushUndo(lastSeen)
+	caretLine := caretLineOf(hEdit)
+	if txt != lastSeen || caretLine != lastCaretLine {
+		if txt != lastSeen {
+			if time.Since(lastEdit) > 700*time.Millisecond {
+				pushUndo(lastSeen)
+			}
+			lastEdit = time.Now()
+			dirtySince = time.Now()
+			lastSeen = txt
+			if !isDirty {
+				isDirty = true
+				updateTitle()
+			}
 		}
-		lastEdit = time.Now()
-		dirtySince = time.Now()
-		lastSeen = txt
-		if !isDirty {
-			isDirty = true
-			updateTitle()
-		}
+		lastCaretLine = caretLine
 		applyStyles(hEdit, txt)
 	}
 	if txt != savedText && time.Since(lastEdit) > 700*time.Millisecond {

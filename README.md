@@ -20,8 +20,12 @@ single ~2 MB Win32 executable written in Go: the window is ready in **~130 ms**.
 ## Features
 
 - One pane, MarkText-style: the Markdown source is painted inline — big headings,
-  bold/italic/underline, monospace code, blue links, dimmed syntax markers.
-- YAML front matter rendered as a coloured block.
+  bold/italic/underline, monospace code chips, blue links.
+- Syntax markers are hidden on inactive lines and appear dimmed on the line with
+  the caret, like MarkText's hybrid editing mode.
+- YAML front matter rendered as a coloured code block.
+- MarkText-like metrics: 16 px body text, ~1.6 line rhythm, 720 px centred column
+  and paragraph spacing.
 - Telegram Desktop formatting shortcuts:
   - `Ctrl+B` — bold (`**text**`)
   - `Ctrl+I` — italic (`_text_`)
@@ -73,9 +77,12 @@ QuickMD with the file's Windows path.
 
 ## Limitations
 
-- Markers are dimmed, not hidden: this is a styled source view, not a full
-  WYSIWYG document model.
-- Raw HTML is shown as code — there is no browser engine inside.
+- This is still a styled source view, not MarkText's document model: list markers
+  stay `-`, tables are not laid out, raw HTML is shown as code, and block-level
+  backgrounds (full-width front matter/code blocks) are approximated.
+- Reaching a literal pixel-perfect MarkText look requires its HTML/CSS renderer
+  (Electron or WebView2); Win32 RichEdit cannot hide markers without leaving a
+  small gap and cannot draw full-width blocks or real tables.
 - Undo is snapshot-based: a quick burst of typing is undone as one chunk.
 
 ## Layout
