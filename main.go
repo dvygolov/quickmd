@@ -17,6 +17,11 @@ const (
 	VK_CONTROL = 0x11
 	VK_SHIFT   = 0x10
 	VK_MENU    = 0x12
+
+	TIMER_POLL        = 9
+	TIMER_FOCUS       = 6
+	TIMER_CLIPRESTORE = 4
+	CF_UNICODETEXT = 13
 )
 
 type snapshot struct {
@@ -24,9 +29,15 @@ type snapshot struct {
 	sel  CHARRANGE
 }
 
+type clipState struct {
+	text string
+	ok   bool
+}
+
 var (
 	hwndMain uintptr
-	hEdit    uintptr
+	hCode    uintptr
+	hPreview uintptr
 
 	wndProcPtr  uintptr
 	editProcPtr uintptr
@@ -38,10 +49,13 @@ var (
 	savedText  string
 	dirtySince time.Time
 	lastEdit   time.Time
-	lastCaretLine int = -1
 
 	undoStack []snapshot
 	redoStack []snapshot
+
+	rtfFormat uintptr
+	pendingClip clipState
+	hasPendingClip bool
 
 	classNamePtr *uint16
 	hInstance    uintptr
@@ -89,7 +103,7 @@ func main() {
 	if icon == 0 {
 		icon, _, _ = pLoadIconW.Call(0, IDI_APPLICATION)
 	}
-	brush, _, _ := pCreateSolidBrush.Call(rgb(35, 35, 38))
+	brush, _, _ := pCreateSolidBrush.Call(rgb(30, 30, 32))
 
 	wc := WNDCLASSEX{
 		CbSize:        uint32(unsafe.Sizeof(WNDCLASSEX{})),
@@ -108,8 +122,8 @@ func main() {
 	sw, _, _ := pGetSystemMetrics.Call(0)
 	sh, _, _ := pGetSystemMetrics.Call(1)
 	w, h := sw*3/4, sh*4/5
-	if w > 1280 {
-		w = 1280
+	if w > 1440 {
+		w = 1440
 	}
 	x, y := (sw-w)/2, (sh-h)/3
 
@@ -153,25 +167,38 @@ func setup() {
 	if dpi < 96 {
 		dpi = 96
 	}
-	pt := int(12 * dpi / 72)
+	monoPt := int(11 * dpi / 72)
+	uiPt := int(12 * dpi / 72)
 
-	font, _, _ := pCreateFontW.Call(uintptr(-pt), 0, 0, 0, FW_NORMAL, 0, 0, 0,
+	fontMono, _, _ := pCreateFontW.Call(uintptr(-monoPt), 0, 0, 0, FW_NORMAL, 0, 0, 0,
+		DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, uintptr(unsafe.Pointer(utf16Ptr("Consolas"))))
+	fontUI, _, _ := pCreateFontW.Call(uintptr(-uiPt), 0, 0, 0, FW_NORMAL, 0, 0, 0,
 		DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, uintptr(unsafe.Pointer(utf16Ptr("Segoe UI"))))
-	sendMsg(hEdit, WM_SETFONT, font, 1)
-	setDefaultFormat(hEdit, "Segoe UI", pt, rgb(212, 212, 212))
 
-	sendMsg(hEdit, EM_SETBKGNDCOLOR, 0, rgb(35, 35, 38))
-	sendMsg(hEdit, EM_AUTOURLDETECT, 0, 0)
-	sendMsg(hEdit, EM_SETOPTIONS, ECO_AUTOVSCROLL, ECO_AUTOVSCROLL)
-	sendMsg(hEdit, EM_SETEVENTMASK, ENM_CHANGE, 0)
-	sendMsg(hEdit, EM_SETUNDOLIMIT, 0, 0) // custom undo
+	sendMsg(hCode, WM_SETFONT, fontMono, 1)
+	sendMsg(hPreview, WM_SETFONT, fontUI, 1)
+	setDefaultFormat(hCode, "Consolas", monoPt, rgb(212, 212, 212))
+	setDefaultFormat(hPreview, "Segoe UI", uiPt, rgb(214, 214, 214))
 
-	oldEditProc = setWindowLongPtr(hEdit, GWLP_WNDPROC, editProcPtr)
+	dark := rgb(30, 30, 32)
+	sendMsg(hCode, EM_SETBKGNDCOLOR, 0, dark)
+	sendMsg(hPreview, EM_SETBKGNDCOLOR, 0, dark)
+
+	sendMsg(hCode, EM_AUTOURLDETECT, 0, 0)
+	sendMsg(hCode, EM_SETOPTIONS, ECO_AUTOVSCROLL, ECO_AUTOVSCROLL)
+	sendMsg(hCode, EM_SETEVENTMASK, ENM_CHANGE, 0)
+	sendMsg(hCode, EM_SETUNDOLIMIT, 0, 0)
+	sendMsg(hPreview, EM_SETEVENTMASK, 0, 0)
+
+	oldEditProc = setWindowLongPtr(hCode, GWLP_WNDPROC, editProcPtr)
+
+	name, _, _ := pRegisterClipboardFormatW.Call(uintptr(unsafe.Pointer(utf16Ptr("Rich Text Format"))))
+	rtfFormat = name
 
 	loadFile()
-	applyStyles(hEdit, getText(hEdit))
-	pSetFocus.Call(hEdit)
-	pSetTimer.Call(hwndMain, 9, 300, 0)
+	renderPreview()
+	pSetFocus.Call(hCode)
+	pSetTimer.Call(hwndMain, TIMER_POLL, 300, 0)
 }
 
 func setDefaultFormat(h uintptr, face string, pt int, color uintptr) {
@@ -186,7 +213,7 @@ func setDefaultFormat(h uintptr, face string, pt int, color uintptr) {
 	sendMsg(h, EM_SETCHARFORMAT, SCF_ALL, uintptr(unsafe.Pointer(&cf)))
 }
 
-func createRichEdit(parent uintptr) uintptr {
+func createRichEdit(parent uintptr, id int) uintptr {
 	style := uint32(WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN | ES_NOHIDESEL)
 	h, _, _ := pCreateWindowExW.Call(
 		0,
@@ -194,7 +221,7 @@ func createRichEdit(parent uintptr) uintptr {
 		0,
 		uintptr(style),
 		0, 0, 10, 10,
-		parent, 1001, hInstance, 0,
+		parent, uintptr(id), hInstance, 0,
 	)
 	return h
 }
@@ -203,7 +230,8 @@ func wndProc(hwnd, msg, wp, lp uintptr) uintptr {
 	switch msg {
 	case WM_CREATE:
 		hwndMain = hwnd
-		hEdit = createRichEdit(hwnd)
+		hCode = createRichEdit(hwnd, 1001)
+		hPreview = createRichEdit(hwnd, 1002)
 		layout(hwnd)
 		return 0
 
@@ -216,16 +244,22 @@ func wndProc(hwnd, msg, wp, lp uintptr) uintptr {
 		return 0
 
 	case WM_SETFOCUS:
-		pSetFocus.Call(hEdit)
+		pSetFocus.Call(hCode)
 		return 0
 
 	case WM_TIMER:
 		switch wp {
-		case 9:
+		case TIMER_POLL:
 			pollText()
-		case 6:
-			pKillTimer.Call(hwnd, 6)
+		case TIMER_FOCUS:
+			pKillTimer.Call(hwnd, TIMER_FOCUS)
 			focusWindow(hwnd)
+		case TIMER_CLIPRESTORE:
+			pKillTimer.Call(hwnd, TIMER_CLIPRESTORE)
+			if hasPendingClip {
+				clipboardRestoreText(pendingClip)
+				hasPendingClip = false
+			}
 		}
 		return 0
 
@@ -288,13 +322,17 @@ func layout(hwnd uintptr) {
 	if w <= 0 || h <= 0 {
 		return
 	}
-	pMoveWindow.Call(hEdit, 0, 0, uintptr(w), uintptr(h), 1)
-	margin := int32(56)
-	if w > 1180 {
-		margin = (w - 1080) / 2
-	}
-	rect := RECT{Left: margin, Top: 40, Right: w - margin, Bottom: h - 28}
-	sendMsg(hEdit, EM_SETRECT, 0, uintptr(unsafe.Pointer(&rect)))
+	gap := int32(6)
+	left := (w - gap) / 2
+	pMoveWindow.Call(hCode, 0, 0, uintptr(left), uintptr(h), 1)
+	pMoveWindow.Call(hPreview, uintptr(left+gap), 0, uintptr(w-left-gap), uintptr(h), 1)
+	setMargins(hCode, left, h)
+	setMargins(hPreview, w-left-gap, h)
+}
+
+func setMargins(hwnd uintptr, width, height int32) {
+	rect := RECT{Left: 18, Top: 14, Right: width - 18, Bottom: height - 14}
+	sendMsg(hwnd, EM_SETRECT, 0, uintptr(unsafe.Pointer(&rect)))
 }
 
 func loadFile() {
@@ -308,11 +346,10 @@ func loadFile() {
 	}
 	text := strings.TrimPrefix(string(data), "\ufeff")
 	text = strings.ReplaceAll(text, "\r\n", "\n")
-	setText(hEdit, text)
+	setText(hCode, text)
 	lastSeen = text
 	savedText = text
 	lastEdit = time.Now()
-	lastCaretLine = -1
 	isDirty = false
 	undoStack = nil
 	redoStack = nil
@@ -345,13 +382,13 @@ func getText(h uintptr) string {
 
 func currentSel() CHARRANGE {
 	var cr CHARRANGE
-	sendMsg(hEdit, EM_EXGETSEL, 0, uintptr(unsafe.Pointer(&cr)))
+	sendMsg(hCode, EM_EXGETSEL, 0, uintptr(unsafe.Pointer(&cr)))
 	return cr
 }
 
 func setSelRange(start, end int32) {
 	cr := CHARRANGE{CpMin: start, CpMax: end}
-	sendMsg(hEdit, EM_EXSETSEL, 0, uintptr(unsafe.Pointer(&cr)))
+	sendMsg(hCode, EM_EXSETSEL, 0, uintptr(unsafe.Pointer(&cr)))
 }
 
 func pushUndo(text string) {
@@ -366,41 +403,41 @@ func undoEdit() {
 	if len(undoStack) == 0 {
 		return
 	}
-	cur := snapshot{text: getText(hEdit), sel: currentSel()}
+	cur := snapshot{text: getText(hCode), sel: currentSel()}
 	s := undoStack[len(undoStack)-1]
 	undoStack = undoStack[:len(undoStack)-1]
 
-	setText(hEdit, s.text)
+	setText(hCode, s.text)
 	setSelRange(s.sel.CpMin, s.sel.CpMax)
 	lastSeen = s.text
-	applyStyles(hEdit, s.text)
-	redoStack = append(redoStack, cur)
 	isDirty = true
 	updateTitle()
+	renderPreview()
+	redoStack = append(redoStack, cur)
 }
 
 func redoEdit() {
 	if len(redoStack) == 0 {
 		return
 	}
-	cur := snapshot{text: getText(hEdit), sel: currentSel()}
+	cur := snapshot{text: getText(hCode), sel: currentSel()}
 	s := redoStack[len(redoStack)-1]
 	redoStack = redoStack[:len(redoStack)-1]
 
-	setText(hEdit, s.text)
+	setText(hCode, s.text)
 	setSelRange(s.sel.CpMin, s.sel.CpMax)
 	lastSeen = s.text
-	applyStyles(hEdit, s.text)
-	undoStack = append(undoStack, cur)
 	isDirty = true
 	updateTitle()
+	renderPreview()
+	undoStack = append(undoStack, cur)
 }
 
 func saveFile() {
 	if filePath == "" {
 		return
 	}
-	text := getText(hEdit)
+	text := getText(hCode)
 	tmp := filePath + ".quickmd.tmp"
 	if err := os.WriteFile(tmp, []byte(text), 0644); err != nil {
 		dbg("write failed: %v", err)
@@ -419,27 +456,134 @@ func saveFile() {
 }
 
 func pollText() {
-	txt := getText(hEdit)
-	caretLine := caretLineOf(hEdit)
-	if txt != lastSeen || caretLine != lastCaretLine {
-		if txt != lastSeen {
-			if time.Since(lastEdit) > 700*time.Millisecond {
-				pushUndo(lastSeen)
-			}
-			lastEdit = time.Now()
-			dirtySince = time.Now()
-			lastSeen = txt
-			if !isDirty {
-				isDirty = true
-				updateTitle()
-			}
+	txt := getText(hCode)
+	if txt != lastSeen {
+		if time.Since(lastEdit) > 700*time.Millisecond {
+			pushUndo(lastSeen)
 		}
-		lastCaretLine = caretLine
-		applyStyles(hEdit, txt)
+		lastEdit = time.Now()
+		dirtySince = time.Now()
+		lastSeen = txt
+		if !isDirty {
+			isDirty = true
+			updateTitle()
+		}
+		renderPreview()
 	}
 	if txt != savedText && time.Since(lastEdit) > 700*time.Millisecond {
 		saveFile()
 	}
+}
+
+func renderPreview() {
+	src := getText(hCode)
+	rtf := renderRTF(parseMarkdown(src))
+	setRTF(hPreview, [][]byte{rtf})
+}
+
+func setRTF(h uintptr, chunks [][]byte) {
+	first, _, _ := pSendMessageW.Call(h, uintptr(EM_GETFIRSTVISIBLELINE), 0, 0)
+	pSendMessageW.Call(h, WM_SETREDRAW, 0, 0)
+	restore := clipboardTakeText()
+
+	sendMsg(h, EM_SETREADONLY, 0, 0)
+	sendMsg(h, EM_SETSEL, 0, 0xFFFFFFFF)
+	for i, data := range chunks {
+		if !clipboardSetRTF(data) {
+			break
+		}
+		if i > 0 {
+			sendMsg(h, EM_SETSEL, ^uintptr(0), ^uintptr(0))
+		}
+		pSendMessageW.Call(h, WM_PASTE, 0, 0)
+	}
+	sendMsg(h, EM_SETREADONLY, 1, 0)
+	if restore.ok {
+		pendingClip = restore
+		hasPendingClip = true
+		pSetTimer.Call(hwndMain, TIMER_CLIPRESTORE, 600, 0)
+	}
+
+	pSendMessageW.Call(h, WM_SETREDRAW, 1, 0)
+
+	cur, _, _ := pSendMessageW.Call(h, uintptr(EM_GETFIRSTVISIBLELINE), 0, 0)
+	if delta := int32(first) - int32(cur); delta != 0 {
+		pSendMessageW.Call(h, uintptr(EM_LINESCROLL), 0, uintptr(int64(delta)))
+	}
+	pInvalidateRect.Call(h, 0, 1)
+}
+
+func clipboardTakeText() clipState {
+	if ok, _, _ := pIsClipboardFormatAvailable.Call(CF_UNICODETEXT); ok == 0 {
+		return clipState{}
+	}
+	if ok, _, _ := pOpenClipboard.Call(hwndMain); ok == 0 {
+		return clipState{}
+	}
+	defer pCloseClipboard.Call()
+	h, _, _ := pGetClipboardData.Call(CF_UNICODETEXT)
+	if h == 0 {
+		return clipState{}
+	}
+	ptr, _, _ := pGlobalLock.Call(h)
+	if ptr == 0 {
+		return clipState{}
+	}
+	defer pGlobalUnlock.Call(h)
+	return clipState{text: utf16PtrString((*uint16)(unsafe.Pointer(ptr))), ok: true}
+}
+
+func clipboardRestoreText(state clipState) {
+	if !state.ok {
+		return
+	}
+	utf := syscall.StringToUTF16(state.text)
+	if ok, _, _ := pOpenClipboard.Call(hwndMain); ok == 0 {
+		return
+	}
+	defer pCloseClipboard.Call()
+	pEmptyClipboard.Call()
+	mem, _, _ := pGlobalAlloc.Call(GMEM_MOVEABLE, uintptr(len(utf)*2))
+	if mem == 0 {
+		return
+	}
+	ptr, _, _ := pGlobalLock.Call(mem)
+	if ptr == 0 {
+		pGlobalFree.Call(mem)
+		return
+	}
+	copy(unsafe.Slice((*uint16)(unsafe.Pointer(ptr)), len(utf)), utf)
+	pGlobalUnlock.Call(mem)
+	if r, _, _ := pSetClipboardData.Call(CF_UNICODETEXT, mem); r == 0 {
+		pGlobalFree.Call(mem)
+	}
+}
+
+func clipboardSetRTF(data []byte) bool {
+	if ok, _, _ := pOpenClipboard.Call(hwndMain); ok == 0 {
+		return false
+	}
+	defer pCloseClipboard.Call()
+	pEmptyClipboard.Call()
+
+	mem, _, _ := pGlobalAlloc.Call(GMEM_MOVEABLE, uintptr(len(data)+1))
+	if mem == 0 {
+		return false
+	}
+	ptr, _, _ := pGlobalLock.Call(mem)
+	if ptr == 0 {
+		pGlobalFree.Call(mem)
+		return false
+	}
+	buf := unsafe.Slice((*byte)(unsafe.Pointer(ptr)), len(data)+1)
+	copy(buf, data)
+	buf[len(data)] = 0
+	pGlobalUnlock.Call(mem)
+	if r, _, _ := pSetClipboardData.Call(rtfFormat, mem); r == 0 {
+		pGlobalFree.Call(mem)
+		return false
+	}
+	return true
 }
 
 func updateTitle() {
@@ -451,7 +595,43 @@ func updateTitle() {
 	if isDirty {
 		mark = " *"
 	}
-	pSetWindowTextW.Call(hwndMain, uintptr(unsafe.Pointer(utf16Ptr(name+mark+" — QuickMD"))))
+	pSetWindowTitle(name + mark + " — QuickMD")
+}
+
+func pSetWindowTitle(s string) {
+	pSetWindowTextW.Call(hwndMain, uintptr(unsafe.Pointer(utf16Ptr(s))))
+}
+
+func utf16PtrString(p *uint16) string {
+	if p == nil {
+		return ""
+	}
+	var out []uint16
+	for i := 0; i < 1<<20; i++ {
+		c := *(*uint16)(unsafe.Pointer(uintptr(unsafe.Pointer(p)) + uintptr(i*2)))
+		if c == 0 {
+			break
+		}
+		out = append(out, c)
+	}
+	return string(utf16Decode(out))
+}
+
+func utf16Decode(in []uint16) []rune {
+	out := make([]rune, 0, len(in))
+	for i := 0; i < len(in); i++ {
+		c := rune(in[i])
+		if c >= 0xD800 && c <= 0xDBFF && i+1 < len(in) {
+			c2 := rune(in[i+1])
+			if c2 >= 0xDC00 && c2 <= 0xDFFF {
+				out = append(out, ((c-0xD800)<<10)+(c2-0xDC00)+0x10000)
+				i++
+				continue
+			}
+		}
+		out = append(out, c)
+	}
+	return out
 }
 
 func setDPIAware() {

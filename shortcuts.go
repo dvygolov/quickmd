@@ -66,7 +66,7 @@ func toggleMark(h uintptr, mark string) {
 	if start == end {
 		insertAt(h, start, mark+mark)
 		setSelRange(int32(start+ml), int32(start+ml))
-		applyStyles(h, getText(h))
+		renderPreview()
 		return
 	}
 
@@ -74,7 +74,7 @@ func toggleMark(h uintptr, mark string) {
 		deleteRange(h, end-ml, end)
 		deleteRange(h, start, start+ml)
 		setSelRange(int32(start), int32(end-2*ml))
-		applyStyles(h, getText(h))
+		renderPreview()
 		return
 	}
 
@@ -84,14 +84,14 @@ func toggleMark(h uintptr, mark string) {
 		deleteRange(h, end, end+ml)
 		deleteRange(h, start-ml, start)
 		setSelRange(int32(start-ml), int32(end-ml))
-		applyStyles(h, getText(h))
+		renderPreview()
 		return
 	}
 
 	insertAt(h, end, mark)
 	insertAt(h, start, mark)
 	setSelRange(int32(start+ml), int32(end+ml))
-	applyStyles(h, getText(h))
+	renderPreview()
 }
 
 func insertAt(h uintptr, pos int, s string) {

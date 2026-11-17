@@ -15,17 +15,13 @@
 ## Why
 
 Markdown editors are usually Electron apps that take seconds to open. QuickMD is a
-single ~2 MB Win32 executable written in Go: the window is ready in **~130 ms**.
+single ~2 MB Win32 executable written in Go: the window is ready in **~150 ms**.
 
 ## Features
 
-- One pane, MarkText-style: the Markdown source is painted inline — big headings,
-  bold/italic/underline, monospace code chips, blue links.
-- Syntax markers are hidden on inactive lines and appear dimmed on the line with
-  the caret, like MarkText's hybrid editing mode.
-- YAML front matter rendered as a coloured code block.
-- MarkText-like metrics: 16 px body text, ~1.6 line rhythm, 720 px centred column
-  and paragraph spacing.
+- Split view: raw Markdown on the left, live rendered preview on the right.
+- Rendered preview: headings, lists, tables, block quotes, fenced code, links,
+  inline code, YAML front matter as a metadata card.
 - Telegram Desktop formatting shortcuts:
   - `Ctrl+B` — bold (`**text**`)
   - `Ctrl+I` — italic (`_text_`)
@@ -33,10 +29,8 @@ single ~2 MB Win32 executable written in Go: the window is ready in **~130 ms**.
   - `Ctrl+Shift+M` — monospace (`` `text` ``)
   - `Ctrl+Shift+X` — strikethrough (`~~text~~`)
   - `Ctrl+Shift+P` — spoiler (`||text||`)
-  - With no selection the pair is inserted and the caret lands between the markers;
-    pressing the shortcut again removes them.
-- `Ctrl+Z` / `Ctrl+Y` — undo and redo. The syntax repaint would poison RichEdit's
-  own undo stack, so QuickMD keeps a small text-snapshot undo of its own.
+- `Ctrl+Z` / `Ctrl+Y` — undo and redo (snapshot-based, because RichEdit's own undo
+  is lost when the preview is re-rendered).
 - Autosave ~1 s after the last edit, `Ctrl+S`, save on close, atomic writes.
 - Dark theme, DPI-aware, embedded icon, no runtime dependencies.
 
@@ -77,21 +71,19 @@ QuickMD with the file's Windows path.
 
 ## Limitations
 
-- This is still a styled source view, not MarkText's document model: list markers
-  stay `-`, tables are not laid out, raw HTML is shown as code, and block-level
-  backgrounds (full-width front matter/code blocks) are approximated.
-- Reaching a literal pixel-perfect MarkText look requires its HTML/CSS renderer
-  (Electron or WebView2); Win32 RichEdit cannot hide markers without leaving a
-  small gap and cannot draw full-width blocks or real tables.
+- The preview is RichEdit RTF, not a browser: raw HTML is shown as code and some
+  MarkText typography (exact line-height, full-width blocks) differs.
+- The preview is pasted through the clipboard (RichEdit imports RTF only that
+  way); the previous clipboard text is restored after 600 ms.
 - Undo is snapshot-based: a quick burst of typing is undone as one chunk.
 
 ## Layout
 
 ```
-main.go      window, editor pane, autosave, undo, launch
+main.go      window, split editor/preview, autosave, undo
 win32.go     Win32 API bindings
-markdown.go  Markdown regexes and front matter parsing
-style.go     inline styling spans and RichEdit formatting
+markdown.go  Markdown and front matter parsing
+rtf.go       RTF generation for the rendered preview
 shortcuts.go Telegram-style formatting hotkeys
 icon/        source icon and .ico
 build.sh     one-command build
