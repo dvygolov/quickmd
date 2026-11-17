@@ -54,6 +54,17 @@ go install github.com/akavel/rsrc@latest
 rsrc -ico icon/quickmd.ico -arch amd64 -o rsrc_windows_amd64.syso
 ```
 
+## Install as the default Markdown editor
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1 -Source .\quickmd.exe
+```
+
+The script copies QuickMD to `%LOCALAPPDATA%\Programs\QuickMD`, registers the
+`QuickMD.md` ProgId, adds it to "Open with" for `.md`, `.markdown` and `.mdx`, and
+registers it in Windows Default Apps. Windows protects the final default choice:
+the script opens the Default Apps page, where QuickMD has to be selected once.
+
 ## Usage
 
 ```bat
