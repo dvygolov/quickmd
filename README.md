@@ -19,14 +19,22 @@ single ~2 MB Win32 executable written in Go: the window is ready in **~130 ms**.
 
 ## Features
 
-- Split view: raw Markdown on the left, live rendered preview on the right.
-- YAML front matter is shown as a metadata card above the document.
-- Headings, nested and ordered lists, task lists, block quotes, fenced code,
-  tables, links, `**bold**`, `*italic*`, `~~strike~~`, inline code.
-- Dark theme, DPI-aware, Consolas for the source and Segoe UI for the preview.
-- Autosave ~1 s after the last edit, plus `Ctrl+S` and save-on-close.
-- Atomic writes (temporary file + rename).
-- No runtime dependencies: a single `.exe`.
+- One pane, MarkText-style: the Markdown source is painted inline — big headings,
+  bold/italic/underline, monospace code, blue links, dimmed syntax markers.
+- YAML front matter rendered as a coloured block.
+- Telegram Desktop formatting shortcuts:
+  - `Ctrl+B` — bold (`**text**`)
+  - `Ctrl+I` — italic (`_text_`)
+  - `Ctrl+U` — underline (`__text__`)
+  - `Ctrl+Shift+M` — monospace (`` `text` ``)
+  - `Ctrl+Shift+X` — strikethrough (`~~text~~`)
+  - `Ctrl+Shift+P` — spoiler (`||text||`)
+  - With no selection the pair is inserted and the caret lands between the markers;
+    pressing the shortcut again removes them.
+- `Ctrl+Z` / `Ctrl+Y` — undo and redo. The syntax repaint would poison RichEdit's
+  own undo stack, so QuickMD keeps a small text-snapshot undo of its own.
+- Autosave ~1 s after the last edit, `Ctrl+S`, save on close, atomic writes.
+- Dark theme, DPI-aware, embedded icon, no runtime dependencies.
 
 ## Build
 
@@ -34,12 +42,6 @@ Requires Go 1.24+.
 
 ```bash
 ./build.sh
-```
-
-or:
-
-```bash
-GOOS=windows GOARCH=amd64 go build -ldflags="-H=windowsgui -s -w" -o quickmd.exe .
 ```
 
 The icon is embedded from `icon/quickmd.ico` through the committed
@@ -64,29 +66,26 @@ From WSL:
 
 ## BB integration
 
-The editor is also wired into the
-[bb-plugin-markdown-open](https://github.com/dvygolov) BB plugin: any `.md` file
-opened in BB gets a **«Редактировать»** button that launches QuickMD with the
-file's Windows path.
+The editor is wired into the
+[bb-plugin-markdown-open](https://github.com/dvygolov/bb-plugin-markdown-open) BB
+plugin: any `.md` file opened in BB has a **«Редактировать»** button that launches
+QuickMD with the file's Windows path.
 
 ## Limitations
 
-- No syntax highlighting in the source pane yet — plain monospace.
-- Raw HTML is shown as code in the preview: without a browser engine it cannot
-  be rendered.
-- The preview is pasted as RTF through the clipboard (the only way RichEdit
-  imports it); the previous clipboard text is restored after 600 ms.
-- Two windows editing the same file do not sync: the last save wins.
-- The window stays on top while it is the active window; Windows does not let a
-  background process take the foreground otherwise.
+- Markers are dimmed, not hidden: this is a styled source view, not a full
+  WYSIWYG document model.
+- Raw HTML is shown as code — there is no browser engine inside.
+- Undo is snapshot-based: a quick burst of typing is undone as one chunk.
 
 ## Layout
 
 ```
-main.go      window, RichEdit panes, autosave, launch
+main.go      window, editor pane, autosave, undo, launch
 win32.go     Win32 API bindings
-markdown.go  Markdown and front matter parsing
-rtf.go       RTF generation for the preview
+markdown.go  Markdown regexes and front matter parsing
+style.go     inline styling spans and RichEdit formatting
+shortcuts.go Telegram-style formatting hotkeys
 icon/        source icon and .ico
 build.sh     one-command build
 ```

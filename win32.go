@@ -100,6 +100,7 @@ const (
 	WM_ACTIVATE   = 0x0006
 	WM_NOTIFY     = 0x004E
 	WM_CHAR       = 0x0102
+	WM_KEYUP      = 0x0101
 	WM_SETICON    = 0x0080
 	WM_CLOSE     = 0x0010
 	WM_SETTEXT   = 0x000C
@@ -134,6 +135,9 @@ const (
 	EM_EXSETSEL           = 0x0400 + 55
 	EM_SETSEL             = 0x00B1
 	EM_SETRECT            = 0x00B3
+	EM_SETUNDOLIMIT       = 0x0400 + 82
+	EM_EXGETSEL           = 0x0400 + 52
+	EM_REPLACESEL         = 0x00C2
 	WM_PASTE              = 0x0302
 	GMEM_MOVEABLE         = 0x0042
 
