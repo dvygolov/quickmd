@@ -2,7 +2,15 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	"image/png"
+	neturl "net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -240,8 +248,14 @@ func writeInline(b *bytes.Buffer, s string, base int) {
 			if j := indexSeq(r, i+2, "]("); j >= 0 {
 				k := indexRune(r, j+2, ')')
 				if k >= 0 {
+					alt := string(r[i+2:j])
+					url := strings.TrimSpace(string(r[j+2 : k]))
+					if writeImage(b, url) {
+						i = k + 1
+						continue
+					}
 					b.WriteString(`\cf2 [image: `)
-					writeInline(b, string(r[i+2:j]), base)
+					writeInline(b, alt, base)
 					b.WriteString(`] \cf1 `)
 					i = k + 1
 					continue
@@ -340,4 +354,71 @@ func writeRuneText(b *bytes.Buffer, r rune) {
 		lo := 0xDC00 + (r & 0x3FF)
 		fmt.Fprintf(b, `\u%d?\u%d?`, int16(hi), int16(lo))
 	}
+}
+
+
+type imgCacheEntry struct {
+	rtf  string
+	mod  int64
+	size int64
+}
+
+var imgCache = map[string]imgCacheEntry{}
+
+func writeImage(b *bytes.Buffer, url string) bool {
+	if url == "" {
+		return false
+	}
+	path := url
+	if u, err := neturl.PathUnescape(path); err == nil {
+		path = u
+	}
+	if strings.HasPrefix(path, "file://") {
+		path = strings.TrimPrefix(path, "file://")
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(docDir, path)
+	}
+	st, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	if hit, ok := imgCache[path]; ok && hit.mod == st.ModTime().UnixNano() && hit.size == st.Size() {
+		b.WriteString(hit.rtf)
+		return true
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return false
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	blip := "\\pngblip"
+	if ext != ".png" {
+		img, _, err := image.Decode(bytes.NewReader(data))
+		if err != nil {
+			return false
+		}
+		var pngBuf bytes.Buffer
+		if err := png.Encode(&pngBuf, img); err != nil {
+			return false
+		}
+		data = pngBuf.Bytes()
+	}
+	w, h := cfg.Width, cfg.Height
+	const maxW = 560
+	if w > maxW {
+		h = h * maxW / w
+		w = maxW
+	}
+	var pic bytes.Buffer
+	fmt.Fprintf(&pic, `{\pict%s\picw%d\pich%d\picwgoal%d\pichgoal%d `, blip, cfg.Width, cfg.Height, w*15, h*15)
+	pic.WriteString(hex.EncodeToString(data))
+	pic.WriteString(`}`)
+	imgCache[path] = imgCacheEntry{rtf: pic.String(), mod: st.ModTime().UnixNano(), size: st.Size()}
+	b.WriteString(pic.String())
+	return true
 }

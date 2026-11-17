@@ -35,6 +35,8 @@ type clipState struct {
 }
 
 var (
+	docDir string
+
 	hwndMain uintptr
 	hCode    uintptr
 	hPreview uintptr
@@ -347,6 +349,7 @@ func loadFile() {
 	text := strings.TrimPrefix(string(data), "\ufeff")
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	setText(hCode, text)
+	docDir = filepath.Dir(filePath)
 	lastSeen = text
 	savedText = text
 	lastEdit = time.Now()
