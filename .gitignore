@@ -1,0 +1,9 @@
+# build caches and local tools
+.gocache/
+.gopath/
+.tools/
+run.log
+shot*.png
+
+# local binaries (built by build.sh / CI)
+*.exe
