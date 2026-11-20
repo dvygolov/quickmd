@@ -4,6 +4,7 @@ package main
 
 import (
 	"runtime"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -17,6 +18,12 @@ func handleFormatShortcut(hwnd, key uintptr) bool {
 		return false
 	}
 	shift := keyDown(VK_SHIFT)
+
+	if !shift && key >= '0' && key <= '6' {
+		pendingChar = key
+		applyHeading(hwnd, int(key-'0'))
+		return true
+	}
 
 	var mark string
 	var controlChar uintptr
@@ -121,4 +128,99 @@ func getTextU16(h uintptr) []uint16 {
 		copied = uintptr(len(buf))
 	}
 	return buf[:copied]
+}
+
+// applyHeading sets or removes the ATX heading prefix on every selected line.
+// level 0 removes the heading.
+func applyHeading(h uintptr, level int) {
+	var cr CHARRANGE
+	sendMsg(h, EM_EXGETSEL, 0, uintptr(unsafe.Pointer(&cr)))
+	start, end := int(cr.CpMin), int(cr.CpMax)
+	if start > end {
+		start, end = end, start
+	}
+	text := getTextU16(h)
+	if len(text) == 0 {
+		return
+	}
+	if start > len(text) {
+		start = len(text)
+	}
+	if end > len(text) {
+		end = len(text)
+	}
+
+	lineStart := start
+	for lineStart > 0 && text[lineStart-1] != '\n' && text[lineStart-1] != '\r' {
+		lineStart--
+	}
+	lineEnd := end
+	for lineEnd < len(text) && text[lineEnd] != '\n' && text[lineEnd] != '\r' {
+		lineEnd++
+	}
+
+	var starts []int
+	for i := lineStart; ; {
+		starts = append(starts, i)
+		j := i
+		for j < len(text) && text[j] != '\n' && text[j] != '\r' {
+			j++
+		}
+		if j >= lineEnd {
+			break
+		}
+		if j < len(text) && text[j] == '\r' {
+			j++
+		}
+		if j < len(text) && text[j] == '\n' {
+			j++
+		}
+		if j > lineEnd {
+			break
+		}
+		i = j
+	}
+
+	newPrefix := ""
+	if level > 0 {
+		newPrefix = strings.Repeat("#", level) + " "
+	}
+	firstOldPrefix := 0
+	for k := len(starts) - 1; k >= 0; k-- {
+		ls := starts[k]
+		le := ls
+		for le < len(text) && text[le] != '\n' && text[le] != '\r' {
+			le++
+		}
+		n := 0
+		for ls+n < le && text[ls+n] == '#' {
+			n++
+		}
+		prefixLen := n
+		if prefixLen > 0 && ls+prefixLen < le && text[ls+prefixLen] == ' ' {
+			prefixLen++
+		}
+		if k == 0 {
+			firstOldPrefix = prefixLen
+		}
+		if syscall.UTF16ToString(text[ls:ls+prefixLen]) == newPrefix {
+			continue
+		}
+		setSelRange(int32(ls), int32(ls+prefixLen))
+		replaceBuf = syscall.StringToUTF16(newPrefix)
+		sendMsg(h, EM_REPLACESEL, 1, uintptr(unsafe.Pointer(&replaceBuf[0])))
+		runtime.KeepAlive(replaceBuf)
+	}
+
+	caret := start
+	if caret >= lineStart+firstOldPrefix {
+		caret = caret - firstOldPrefix + len(newPrefix)
+	} else {
+		caret = lineStart + len(newPrefix)
+	}
+	if caret < 0 {
+		caret = 0
+	}
+	setSelRange(int32(caret), int32(caret))
+	renderPreview()
 }

@@ -31,10 +31,13 @@ single ~2 MB Win32 executable written in Go: the window is ready in **~150 ms**.
   as-is; JPEG/GIF are converted to PNG. Relative paths resolve against the
   Markdown file, `%20` and absolute Windows paths work, width is capped at
   560 px, and the encoded image is cached until the file changes.
+- Heading shortcuts: `Ctrl+1` … `Ctrl+6` set the heading level of the current
+  line, `Ctrl+0` removes the heading. Works on a multi-line selection too.
 - Telegram Desktop formatting shortcuts:
   - `Ctrl+B` — bold (`**text**`)
   - `Ctrl+I` — italic (`_text_`)
-  - `Ctrl+U` — underline (`__text__`)
+  - `Ctrl+U` — underline (`__text__`; double underscore renders underlined,
+    while `**text**` stays bold)
   - `Ctrl+Shift+M` — monospace (`` `text` ``)
   - `Ctrl+Shift+X` — strikethrough (`~~text~~`)
   - `Ctrl+Shift+P` — spoiler (`||text||`)

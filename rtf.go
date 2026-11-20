@@ -376,9 +376,9 @@ func walkInline(r []rune, src []int, st Style, sink Sink) {
 		case c == '_' && i+1 < len(r) && r[i+1] == '_':
 			if j := indexSeq(r, i+2, "__"); j > i+2 {
 				flush(i)
-				bs := st
-				bs.Bold = true
-				walkInline(r[i+2:j], src[i+2:j], bs, sink)
+				us := st
+				us.Underline = true
+				walkInline(r[i+2:j], src[i+2:j], us, sink)
 				i = j + 2
 				runStart = i
 			} else {
