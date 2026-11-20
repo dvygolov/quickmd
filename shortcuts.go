@@ -24,6 +24,11 @@ func handleFormatShortcut(hwnd, key uintptr) bool {
 		applyHeading(hwnd, int(key-'0'))
 		return true
 	}
+	if !shift && key == 'K' {
+		pendingChar = 0x0B
+		insertLink(hwnd)
+		return true
+	}
 
 	var mark string
 	var controlChar uintptr

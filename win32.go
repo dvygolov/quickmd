@@ -82,6 +82,12 @@ var (
 	pDrawMenuBar      = user32.NewProc("DrawMenuBar")
 	pGetOpenFileNameW = comdlg32.NewProc("GetOpenFileNameW")
 	pGetSaveFileNameW = comdlg32.NewProc("GetSaveFileNameW")
+	pIsDialogMessageW  = user32.NewProc("IsDialogMessageW")
+	pEnableWindow      = user32.NewProc("EnableWindow")
+	pGetWindowTextW    = user32.NewProc("GetWindowTextW")
+	pGetWindowTextLengthW = user32.NewProc("GetWindowTextLengthW")
+	pPeekMessageW      = user32.NewProc("PeekMessageW")
+	pWaitMessage       = user32.NewProc("WaitMessage")
 	pCommDlgExtendedError = comdlg32.NewProc("CommDlgExtendedError")
 
 	pGetModuleHandleW = kernel32.NewProc("GetModuleHandleW")
@@ -94,6 +100,16 @@ var (
 
 const (
 	WS_OVERLAPPEDWINDOW = 0x00CF0000
+	WS_POPUP            = 0x80000000
+	WS_CAPTION          = 0x00C00000
+	WS_SYSMENU          = 0x00080000
+	WS_EX_DLGMODALFRAME = 0x00000001
+	WS_EX_CONTROLPARENT = 0x00010000
+	WS_EX_CLIENTEDGE   = 0x00000200
+	BS_DEFPUSHBUTTON    = 0x0001
+	BS_PUSHBUTTON       = 0x0000
+	ES_AUTOHSCROLL      = 0x0080
+	PM_REMOVE           = 0x0001
 	WS_CHILD            = 0x40000000
 	WS_VISIBLE          = 0x10000000
 	WS_VSCROLL          = 0x00200000

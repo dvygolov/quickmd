@@ -17,6 +17,8 @@ const (
 	VK_CONTROL = 0x11
 	VK_SHIFT   = 0x10
 	VK_MENU    = 0x12
+	VK_RETURN  = 0x0D
+	VK_ESCAPE  = 0x1B
 
 	TIMER_POLL        = 9
 	TIMER_FOCUS       = 6
@@ -67,6 +69,7 @@ var (
 	logDir       string
 	previewDirty bool
 	previewRetry int
+	uiFont       uintptr
 )
 
 func messageBox(text string) {
@@ -186,6 +189,7 @@ func setup() {
 	fontUI, _, _ := pCreateFontW.Call(uintptr(-uiPt), 0, 0, 0, FW_NORMAL, 0, 0, 0,
 		DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, uintptr(unsafe.Pointer(utf16Ptr("Segoe UI"))))
 
+	uiFont = fontUI
 	sendMsg(hCode, WM_SETFONT, fontMono, 1)
 	sendMsg(hPreview, WM_SETFONT, fontUI, 1)
 	setDefaultFormat(hCode, "Consolas", monoPt, rgb(212, 212, 212))

@@ -31,6 +31,9 @@ single ~2 MB Win32 executable written in Go: the window is ready in **~150 ms**.
   as-is; JPEG/GIF are converted to PNG. Relative paths resolve against the
   Markdown file, `%20` and absolute Windows paths work, width is capped at
   560 px, and the encoded image is cached until the file changes.
+- `Ctrl+K` — turn the selected text into a Markdown link: a small window asks
+  for the URL, then inserts `[selected](url)` (with no selection it inserts
+  `[](url)` and puts the caret between the brackets).
 - Heading shortcuts: `Ctrl+1` … `Ctrl+6` set the heading level of the current
   line, `Ctrl+0` removes the heading. Works on a multi-line selection too.
 - Telegram Desktop formatting shortcuts:
