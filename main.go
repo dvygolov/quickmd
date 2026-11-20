@@ -21,6 +21,7 @@ const (
 	TIMER_POLL        = 9
 	TIMER_FOCUS       = 6
 	TIMER_CLIPRESTORE = 4
+	TIMER_PREVIEW     = 10
 	CF_UNICODETEXT = 13
 )
 
@@ -62,6 +63,8 @@ var (
 	classNamePtr *uint16
 	hInstance    uintptr
 	logFile      *os.File
+	logDir       string
+	previewDirty bool
 )
 
 func messageBox(text string) {
@@ -79,7 +82,8 @@ func main() {
 	t0 := time.Now()
 
 	exePath, _ := os.Executable()
-	if f, err := os.Create(filepath.Join(filepath.Dir(exePath), "run.log")); err == nil {
+	logDir = filepath.Dir(exePath)
+	if f, err := os.Create(filepath.Join(logDir, "run.log")); err == nil {
 		logFile = f
 		defer f.Close()
 	}
@@ -130,13 +134,14 @@ func main() {
 	}
 	x, y := (sw-w)/2, (sh-h)/3
 
+	menu := buildMenu()
 	hwnd, _, err := pCreateWindowExW.Call(
 		0,
 		uintptr(unsafe.Pointer(classNamePtr)),
 		uintptr(unsafe.Pointer(utf16Ptr("QuickMD"))),
 		uintptr(WS_OVERLAPPEDWINDOW),
 		x, y, w, h,
-		0, 0, hInstance, 0,
+		0, menu, hInstance, 0,
 	)
 	if hwnd == 0 {
 		messageBox("CreateWindowExW: " + err.Error())
@@ -204,6 +209,7 @@ func setup() {
 	renderPreview()
 	pSetFocus.Call(hCode)
 	pSetTimer.Call(hwndMain, TIMER_POLL, 300, 0)
+	pSetTimer.Call(hwndMain, TIMER_PREVIEW, 150, 0)
 }
 
 func setDefaultFormat(h uintptr, face string, pt int, color uintptr) {
@@ -244,6 +250,12 @@ func wndProc(hwnd, msg, wp, lp uintptr) uintptr {
 		layout(hwnd)
 		return 0
 
+	case WM_COMMAND:
+		if id := int(wp & 0xFFFF); id >= 40000 {
+			handleCommand(id)
+		}
+		return 0
+
 	case WM_ACTIVATE:
 		setTopmost(hwnd, wp&0xFFFF != 0)
 		return 0
@@ -256,6 +268,8 @@ func wndProc(hwnd, msg, wp, lp uintptr) uintptr {
 		switch wp {
 		case TIMER_POLL:
 			pollText()
+		case TIMER_PREVIEW:
+			pollPreview()
 		case TIMER_FOCUS:
 			pKillTimer.Call(hwnd, TIMER_FOCUS)
 			focusWindow(hwnd)
@@ -269,8 +283,8 @@ func wndProc(hwnd, msg, wp, lp uintptr) uintptr {
 		return 0
 
 	case WM_CLOSE:
-		if isDirty {
-			saveFile()
+		if !confirmDiscard() {
+			return 0
 		}
 		pDestroyWindow.Call(hwnd)
 		return 0
@@ -307,7 +321,14 @@ func editWndProc(hwnd, msg, wp, lp uintptr) uintptr {
 				redoEdit()
 				return 0
 			case 'S':
-				saveFile()
+				if keyDown(VK_SHIFT) {
+					saveFileAs()
+				} else {
+					saveFile()
+				}
+				return 0
+			case 'O':
+				openFileDialog()
 				return 0
 			}
 		}
@@ -320,10 +341,29 @@ func editWndProc(hwnd, msg, wp, lp uintptr) uintptr {
 }
 
 func previewWndProc(hwnd, msg, wp, lp uintptr) uintptr {
+	if msg == WM_KEYDOWN && keyDown(VK_CONTROL) {
+		switch wp {
+		case 'Z':
+			undoEdit()
+			return 0
+		case 'Y':
+			redoEdit()
+			return 0
+		case 'S':
+			if keyDown(VK_SHIFT) {
+				saveFileAs()
+			} else {
+				saveFile()
+			}
+			return 0
+		case 'O':
+			openFileDialog()
+			return 0
+		}
+	}
 	r, _, _ := pCallWindowProcW.Call(oldPreviewProc, hwnd, msg, wp, lp)
 	switch msg {
 	case WM_VSCROLL, WM_MOUSEWHEEL, WM_KEYDOWN:
-		dbg("preview scroll msg=%#x", msg)
 		syncPreviewToSource()
 	}
 	return r
@@ -395,6 +435,7 @@ func loadFile() {
 	docDir = filepath.Dir(filePath)
 	lastSeen = text
 	savedText = text
+	srcText = text
 	lastEdit = time.Now()
 	isDirty = false
 	undoStack = nil
@@ -510,10 +551,14 @@ func pollText() {
 		lastEdit = time.Now()
 		dirtySince = time.Now()
 		lastSeen = txt
+		previewDirty = true
 		if !isDirty {
 			isDirty = true
 			updateTitle()
 		}
+	}
+	if previewDirty && time.Since(lastEdit) > 150*time.Millisecond {
+		previewDirty = false
 		renderPreview()
 	}
 	if txt != savedText && time.Since(lastEdit) > 700*time.Millisecond {
@@ -523,8 +568,32 @@ func pollText() {
 
 func renderPreview() {
 	src := getText(hCode)
-	rtf := renderRTF(parseMarkdown(src))
+	srcText = src
+	doc := parseMarkdown(src)
+	rtf, plain, mapping := renderPreviewDoc(doc)
 	setRTF(hPreview, [][]byte{rtf})
+	previewText = plain
+	previewSrc = mapping
+	previewValid = len(plain) == len(mapping)
+	actual := []rune(getText(hPreview))
+	if !runesEqual(actual, plain) {
+		dbg("preview text mismatch: builder=%d actual=%d", len(plain), len(actual))
+		n := len(plain)
+		if len(actual) < n {
+			n = len(actual)
+		}
+		for i := 0; i < n; i++ {
+			if plain[i] != actual[i] {
+				lo := i - 15
+				if lo < 0 {
+					lo = 0
+				}
+				dbg("first diff at %d builder=%q actual=%q", i, string(plain[lo:min(i+25, len(plain))]), string(actual[lo:min(i+25, len(actual))]))
+				break
+			}
+		}
+		previewValid = false
+	}
 }
 
 func setRTF(h uintptr, chunks [][]byte) {
@@ -536,6 +605,7 @@ func setRTF(h uintptr, chunks [][]byte) {
 	sendMsg(h, EM_SETSEL, 0, 0xFFFFFFFF)
 	for i, data := range chunks {
 		if !clipboardSetRTF(data) {
+			dbg("clipboardSetRTF failed")
 			break
 		}
 		if i > 0 {
@@ -543,7 +613,6 @@ func setRTF(h uintptr, chunks [][]byte) {
 		}
 		pSendMessageW.Call(h, WM_PASTE, 0, 0)
 	}
-	sendMsg(h, EM_SETREADONLY, 1, 0)
 	if restore.ok {
 		pendingClip = restore
 		hasPendingClip = true

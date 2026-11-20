@@ -13,6 +13,7 @@ var (
 	kernel32 = syscall.NewLazyDLL("kernel32.dll")
 	gdi32    = syscall.NewLazyDLL("gdi32.dll")
 	msftedit = syscall.NewLazyDLL("Msftedit.dll")
+	comdlg32 = syscall.NewLazyDLL("comdlg32.dll")
 )
 
 var (
@@ -36,6 +37,7 @@ var (
 	pGetScrollInfo      = user32.NewProc("GetScrollInfo")
 	pMoveWindow         = user32.NewProc("MoveWindow")
 	pGetKeyState        = user32.NewProc("GetKeyState")
+	pGetFocus           = user32.NewProc("GetFocus")
 	pSetFocus           = user32.NewProc("SetFocus")
 	pPostMessage        = user32.NewProc("PostMessageW")
 	pLoadCursorW        = user32.NewProc("LoadCursorW")
@@ -72,6 +74,15 @@ var (
 	pGlobalAlloc       = kernel32.NewProc("GlobalAlloc")
 	pGlobalLock        = kernel32.NewProc("GlobalLock")
 	pGlobalUnlock      = kernel32.NewProc("GlobalUnlock")
+
+	pCreateMenu       = user32.NewProc("CreateMenu")
+	pCreatePopupMenu  = user32.NewProc("CreatePopupMenu")
+	pAppendMenuW      = user32.NewProc("AppendMenuW")
+	pSetMenu          = user32.NewProc("SetMenu")
+	pDrawMenuBar      = user32.NewProc("DrawMenuBar")
+	pGetOpenFileNameW = comdlg32.NewProc("GetOpenFileNameW")
+	pGetSaveFileNameW = comdlg32.NewProc("GetSaveFileNameW")
+	pCommDlgExtendedError = comdlg32.NewProc("CommDlgExtendedError")
 
 	pGetModuleHandleW = kernel32.NewProc("GetModuleHandleW")
 
@@ -144,6 +155,8 @@ const (
 	EM_GETLINECOUNT       = 0x00BA
 	EM_EXGETSEL           = 0x0400 + 52
 	EM_REPLACESEL         = 0x00C2
+	WM_CUT                = 0x0300
+	WM_COPY               = 0x0301
 	WM_PASTE              = 0x0302
 	GMEM_MOVEABLE         = 0x0042
 
@@ -185,6 +198,23 @@ const (
 	FF_SWISS        = 32
 
 	ERROR_SUCCESS = 0
+
+	MF_STRING    = 0x0000
+	MF_POPUP     = 0x0010
+	MF_SEPARATOR = 0x0800
+
+	OFN_OVERWRITEPROMPT = 0x00000002
+	OFN_FILEMUSTEXIST   = 0x00001000
+	OFN_PATHMUSTEXIST   = 0x00000800
+	OFN_NOCHANGEDIR     = 0x00000008
+	OFN_EXPLORER        = 0x00080000
+
+	MB_YESNOCANCEL = 0x00000003
+	MB_YESNO       = 0x00000004
+	MB_ICONQUESTION = 0x00000020
+	MB_ICONWARNING  = 0x00000030
+	IDYES = 6
+	IDNO  = 7
 )
 
 // Structs ------------------------------------------------------------------
@@ -298,6 +328,32 @@ type GETTEXTEX struct {
 	Codepage      uint32
 	LpDefaultChar *byte
 	LpUsedDefChar *byte
+}
+
+type OPENFILENAMEW struct {
+	LStructSize       uint32
+	HwndOwner         uintptr
+	HInstance         uintptr
+	LpstrFilter       *uint16
+	LpstrCustomFilter *uint16
+	NMaxCustFilter    uint32
+	NFilterIndex      uint32
+	LpstrFile         *uint16
+	NMaxFile          uint32
+	LpstrFileTitle    *uint16
+	NMaxFileTitle     uint32
+	LpstrInitialDir   *uint16
+	LpstrTitle        *uint16
+	Flags             uint32
+	NFileOffset       uint16
+	NFileExtension    uint16
+	LpstrDefExt       *uint16
+	LpCustData        uintptr
+	LpfnHook          uintptr
+	LpTemplateName    *uint16
+	PvReserved        uintptr
+	DwReserved        uint32
+	FlagsEx           uint32
 }
 
 type EDITSTREAM struct {

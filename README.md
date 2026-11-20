@@ -20,7 +20,11 @@ single ~2 MB Win32 executable written in Go: the window is ready in **~150 ms**.
 ## Features
 
 - Split view: raw Markdown on the left, live rendered preview on the right.
+- Two-way sync: typing in the preview writes the change back into the Markdown
+  source; typing in the source re-renders the preview.
 - Scroll sync: scrolling the preview moves the source to the matching part of the document.
+- Main menu: **File** (Open, Save, Save As, Exit), **Edit** (Undo, Redo, Cut,
+  Copy, Paste, Select All), **Help** (About).
 - Rendered preview: headings, lists, tables, block quotes, fenced code, links,
   inline code, YAML front matter as a metadata card.
 - Inline images: `![alt](picture.png)` renders in the preview. PNG is embedded
@@ -97,6 +101,8 @@ QuickMD with the file's Windows path.
 
 ```
 main.go      window, split editor/preview, autosave, undo
+menu.go      Win32 main menu and Open/Save dialogs
+sync.go      preview ↔ source mapping and two-way edits
 win32.go     Win32 API bindings
 markdown.go  Markdown and front matter parsing
 rtf.go       RTF generation for the rendered preview

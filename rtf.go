@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 var (
@@ -29,6 +30,23 @@ const (
 	colAccent  = 6
 )
 
+// Style describes how a run of preview text is drawn.
+type Style struct {
+	Bold      bool
+	Italic    bool
+	Strike    bool
+	Underline bool
+	Code      bool
+	Size      int
+	Color     int
+}
+
+// Sink receives the flattened inline content of a Markdown block.
+type Sink interface {
+	Text(text string, src []int, st Style)
+	Image(url string, src int) bool
+}
+
 func rtfHeader() string {
 	return `{\rtf1\ansi\ansicpg1252\deff0\uc1\viewkind4` +
 		`{\fonttbl{\f0\fswiss\fcharset204 Segoe UI;}{\f1\fmodern\fcharset204 Consolas;}}` +
@@ -42,24 +60,173 @@ func rtfHeader() string {
 		`\pard\f0\fs22\cf1`
 }
 
-func renderFrontMatter(b *bytes.Buffer, d *Doc) {
+// rtfSink writes inline runs as RTF.
+type rtfSink struct {
+	b      *bytes.Buffer
+	cur    Style
+	inited bool
+}
+
+func (s *rtfSink) Text(text string, src []int, st Style) {
+	if !s.inited || st != s.cur {
+		s.emitStyle(st)
+		s.cur = st
+		s.inited = true
+	}
+	writeText(s.b, text)
+}
+
+func (s *rtfSink) Image(url string, src int) bool {
+	return writeImage(s.b, url)
+}
+
+func (s *rtfSink) emitStyle(st Style) {
+	b := s.b
+	if st.Code {
+		b.WriteString(`\f1`)
+	} else {
+		b.WriteString(`\f0`)
+	}
+	b.WriteString(`\fs`)
+	b.WriteString(strconv.Itoa(st.Size))
+	b.WriteString(`\cf`)
+	b.WriteString(strconv.Itoa(st.Color))
+	if st.Bold {
+		b.WriteString(`\b`)
+	} else {
+		b.WriteString(`\b0`)
+	}
+	if st.Italic {
+		b.WriteString(`\i`)
+	} else {
+		b.WriteString(`\i0`)
+	}
+	if st.Strike {
+		b.WriteString(`\strike`)
+	} else {
+		b.WriteString(`\strike0`)
+	}
+	if st.Underline {
+		b.WriteString(`\ul`)
+	} else {
+		b.WriteString(`\ul0`)
+	}
+	b.WriteString(` `)
+}
+
+// plainSink records the visible text and its source mapping.
+type plainSink struct {
+	p *previewBuilder
+}
+
+func (s *plainSink) Text(text string, src []int, st Style) {
+	s.p.text = append(s.p.text, []rune(text)...)
+	s.p.src = append(s.p.src, src...)
+}
+
+func (s *plainSink) Image(url string, src int) bool {
+	s.p.text = append(s.p.text, '\uFFFC')
+	s.p.src = append(s.p.src, src)
+	return true
+}
+
+type multiSink struct {
+	rtf   *rtfSink
+	plain *plainSink
+}
+
+func (m *multiSink) Text(text string, src []int, st Style) {
+	m.rtf.Text(text, src, st)
+	m.plain.Text(text, src, st)
+}
+
+func (m *multiSink) Image(url string, src int) bool {
+	if !m.rtf.Image(url, src) {
+		return false
+	}
+	m.plain.Image(url, src)
+	return true
+}
+
+// previewBuilder accumulates the RTF output, the plain text shown in the
+// preview and the source offset of every visible rune.
+type previewBuilder struct {
+	text []rune
+	src  []int
+	rtf  bytes.Buffer
+}
+
+func (p *previewBuilder) newline(srcByte int) {
+	p.text = append(p.text, '\n')
+	p.src = append(p.src, srcByte)
+	p.rtf.WriteString(`\par`)
+}
+
+func (p *previewBuilder) emit(text string, src []int, st Style) {
+	sink := &multiSink{rtf: &rtfSink{b: &p.rtf}, plain: &plainSink{p: p}}
+	walkInline([]rune(text), src, st, sink)
+}
+
+func (p *previewBuilder) emitSynthetic(text string, st Style) {
+	p.emit(text, syntheticSrc(len([]rune(text))), st)
+}
+
+func seqOffsets(text string, base int) []int {
+	if base < 0 {
+		return syntheticSrc(len([]rune(text)))
+	}
+	out := make([]int, 0, len([]rune(text)))
+	for i := range text {
+		out = append(out, base+i)
+	}
+	return out
+}
+
+type lineSeg struct {
+	text string
+	src  []int
+	end  int
+}
+
+func splitLines(text string, src []int) []lineSeg {
+	r := []rune(text)
+	var out []lineSeg
+	start := 0
+	for i := 0; i <= len(r); i++ {
+		if i == len(r) || r[i] == '\n' {
+			end := 0
+			if i < len(r) {
+				end = src[i]
+			} else if len(src) > 0 {
+				end = src[len(src)-1] + utf8.RuneLen(r[len(r)-1])
+			}
+			out = append(out, lineSeg{text: string(r[start:i]), src: src[start:i], end: end})
+			start = i + 1
+		}
+	}
+	return out
+}
+
+func renderFrontMatter(p *previewBuilder, d *Doc) {
 	if len(d.Front) == 0 {
 		return
 	}
-	b.WriteString(`\pard\f1\fs16\cf2\sa40 YAML front matter\par`)
+	p.rtf.WriteString(`\pard\sa40 `)
+	p.emitSynthetic("YAML front matter", Style{Size: 16, Color: colDim, Code: true})
+	p.newline(d.FrontStart)
 	for _, kv := range d.Front {
-		b.WriteString(`\pard\f1\fs18\sa20\cf1\b `)
-		writeText(b, kv.Key)
-		b.WriteString(`\b0  \cf2 `)
-		writeText(b, kv.Value)
-		b.WriteString(`\par`)
+		p.rtf.WriteString(`\pard\sa20 `)
+		p.emit(kv.Key, seqOffsets(kv.Key, kv.KeySrc), Style{Size: 18, Color: colText, Code: true, Bold: true})
+		p.emitSynthetic("  ", Style{Size: 18, Color: colText, Code: true})
+		p.emit(kv.Value, seqOffsets(kv.Value, kv.ValSrc), Style{Size: 18, Color: colDim, Code: true})
+		p.newline(kv.SrcEnd)
 	}
-	b.WriteString(`\pard\f0\fs14\cf2\sa160 `)
-	writeText(b, strings.Repeat("─", 42))
-	b.WriteString(`\par`)
+	p.rtf.WriteString(`\pard\sa160 `)
+	p.emitSynthetic(strings.Repeat("─", 42), Style{Size: 14, Color: colDim})
+	p.newline(d.FrontEnd)
 }
 
-func renderBlock(b *bytes.Buffer, blk Block) {
+func renderBlock(p *previewBuilder, blk Block) {
 	switch blk.Kind {
 	case BlockHeading:
 		size := 22
@@ -73,28 +240,27 @@ func renderBlock(b *bytes.Buffer, blk Block) {
 		case 4:
 			size = 24
 		}
-		fmt.Fprintf(b, `\pard\sb220\sa140\f0\fs%d\b\cf%d `, size, colHeading)
-		writeInline(b, blk.Text, size)
-		b.WriteString(`\b0\par`)
+		p.rtf.WriteString(`\pard\sb220\sa140 `)
+		p.emit(blk.Text, blk.Src, Style{Size: size, Color: colHeading, Bold: true})
+		p.newline(blk.SrcEnd)
 
 	case BlockParagraph:
 		if strings.Contains(blk.Text, "![") {
-			// A picture line must not inherit the 1.38 line spacing: RichEdit
-			// would reserve that extra height below the image.
-			b.WriteString(`\pard\sa150\slmult0\f0\fs22\cf1 `)
+			p.rtf.WriteString(`\pard\sa150\slmult0 `)
 		} else {
-			b.WriteString(`\pard\sa150\sl276\slmult1\f0\fs22\cf1 `)
+			p.rtf.WriteString(`\pard\sa150\sl276\slmult1 `)
 		}
-		writeInline(b, blk.Text, 22)
-		b.WriteString(`\par`)
+		p.emit(blk.Text, blk.Src, Style{Size: 22, Color: colText})
+		p.newline(blk.SrcEnd)
 
 	case BlockCode:
-		for _, ln := range strings.Split(blk.Text, "\n") {
-			b.WriteString(`\pard\li280\sa0\sl240\slmult0\f1\fs18\cf3 `)
-			writeText(b, ln)
-			b.WriteString(`\par`)
+		for _, seg := range splitLines(blk.Text, blk.Src) {
+			p.rtf.WriteString(`\pard\li280\sa0\sl240\slmult0 `)
+			p.emit(seg.text, seg.src, Style{Size: 18, Color: colCode, Code: true})
+			p.newline(seg.end)
 		}
-		b.WriteString(`\pard\sa160\par`)
+		p.rtf.WriteString(`\pard\sa160 `)
+		p.newline(blk.SrcEnd)
 
 	case BlockList:
 		for idx, it := range blk.Items {
@@ -103,155 +269,131 @@ func renderBlock(b *bytes.Buffer, blk Block) {
 			if blk.Ordered {
 				bullet = strconv.Itoa(idx+1) + ". "
 			}
-			fmt.Fprintf(b, `\pard\li%d\fi-240\sa60\sl264\slmult1\f0\fs22\cf1 `, indent)
-			writeText(b, bullet)
+			p.rtf.WriteString(fmt.Sprintf(`\pard\li%d\fi-240\sa60\sl264\slmult1 `, indent))
+			p.emitSynthetic(bullet, Style{Size: 22, Color: colText})
 			text := it.Text
 			if strings.HasPrefix(text, "[ ] ") {
 				text = "☐ " + text[4:]
 			} else if strings.HasPrefix(strings.ToLower(text), "[x] ") {
 				text = "☑ " + text[4:]
 			}
-			writeInline(b, text, 22)
-			b.WriteString(`\par`)
+			p.emit(text, it.Src, Style{Size: 22, Color: colText})
+			p.newline(it.SrcEnd)
 		}
 
 	case BlockQuote:
-		b.WriteString(`\pard\li360\sa100\sl264\slmult1\f0\fs22\i\cf2 `)
-		writeText(b, "│ ")
-		writeInline(b, blk.Text, 22)
-		b.WriteString(`\i0\par`)
+		p.rtf.WriteString(`\pard\li360\sa100\sl264\slmult1 `)
+		p.emitSynthetic("│ ", Style{Size: 22, Color: colDim, Italic: true})
+		p.emit(blk.Text, blk.Src, Style{Size: 22, Color: colDim, Italic: true})
+		p.newline(blk.SrcEnd)
 
 	case BlockTable:
 		for ri, row := range blk.Rows {
-			b.WriteString(`\pard\sa40\sl240\slmult1\f0\fs20\cf1 `)
+			p.rtf.WriteString(`\pard\sa40\sl240\slmult1 `)
+			st := Style{Size: 20, Color: colText}
 			if ri == 0 {
-				b.WriteString(`\b `)
+				st.Bold = true
 			}
-			for ci, cell := range row {
+			for ci, cell := range row.Cells {
 				if ci > 0 {
-					b.WriteString(`  \cf2`)
-					writeText(b, "│")
-					b.WriteString(`\cf1  `)
+					p.emitSynthetic("  │  ", Style{Size: 20, Color: colDim})
 				}
-				writeInline(b, cell, 20)
+				var src []int
+				if ci < len(row.Srcs) {
+					src = row.Srcs[ci]
+				}
+				p.emit(cell, src, st)
 			}
-			if ri == 0 {
-				b.WriteString(`\b0 `)
-			}
-			b.WriteString(`\par`)
+			p.newline(row.SrcEnd)
 		}
-		b.WriteString(`\pard\sa120\par`)
+		p.rtf.WriteString(`\pard\sa120 `)
+		p.newline(blk.SrcEnd)
 
 	case BlockHR:
-		b.WriteString(`\pard\sa140\f0\fs16\cf2 `)
-		writeText(b, strings.Repeat("─", 48))
-		b.WriteString(`\par`)
+		p.rtf.WriteString(`\pard\sa140 `)
+		p.emitSynthetic(strings.Repeat("─", 48), Style{Size: 16, Color: colDim})
+		p.newline(blk.SrcEnd)
 	}
 }
 
-func renderRTF(d *Doc) []byte {
-	var b bytes.Buffer
-	b.WriteString(rtfHeader())
-	renderFrontMatter(&b, d)
+// renderPreviewDoc renders the document once and returns the RTF, the visible
+// text and the source offset of every visible rune.
+func renderPreviewDoc(d *Doc) ([]byte, []rune, []int) {
+	p := &previewBuilder{}
+	p.rtf.WriteString(rtfHeader())
+	renderFrontMatter(p, d)
 	for _, blk := range d.Blocks {
-		renderBlock(&b, blk)
+		renderBlock(p, blk)
 	}
-	b.WriteString(`\pard\f0\fs2\cf1 \par}`)
-	return b.Bytes()
+	p.rtf.WriteString(`\pard\f0\fs2\cf1 `)
+	p.newline(len(d.Source))
+	p.rtf.WriteString(`}`)
+	return p.rtf.Bytes(), p.text, p.src
 }
 
-// renderRTFChunks splits a document into RTF documents below max bytes because
-// RichEdit imports only about a kilobyte of RTF from the clipboard per paste.
-func renderRTFChunks(d *Doc, max int) [][]byte {
-	head := rtfHeader()
-	var chunks [][]byte
-	var cur bytes.Buffer
-	cur.WriteString(head)
-	flush := func() {
-		if cur.Len() > len(head) {
-			chunks = append(chunks, []byte(cur.String()+`}`))
-			cur.Reset()
-			cur.WriteString(head)
-		}
-	}
-	renderFrontMatter(&cur, d)
-	for _, blk := range d.Blocks {
-		var tb bytes.Buffer
-		renderBlock(&tb, blk)
-		if cur.Len()+tb.Len()+1 > max {
-			flush()
-		}
-		cur.Write(tb.Bytes())
-	}
-	flush()
-	if len(chunks) == 0 {
-		chunks = append(chunks, []byte(rtfHeader()+`}`))
-	}
-	return chunks
-}
-
-func writeInline(b *bytes.Buffer, s string, base int) {
-	r := []rune(s)
+func walkInline(r []rune, src []int, st Style, sink Sink) {
 	i := 0
+	runStart := 0
+	flush := func(end int) {
+		if end > runStart {
+			sink.Text(string(r[runStart:end]), src[runStart:end], st)
+		}
+	}
 	for i < len(r) {
 		c := r[i]
 		switch {
 		case c == '\\' && i+1 < len(r):
-			writeRuneText(b, r[i+1])
+			flush(i)
+			sink.Text(string(r[i+1]), src[i+1:i+2], st)
 			i += 2
+			runStart = i
 
 		case c == '`':
 			if j := indexRune(r, i+1, '`'); j >= 0 {
-				fmt.Fprintf(b, `\f1\fs%d\cf%d `, base-2, colCode)
-				writeText(b, string(r[i+1:j]))
-				fmt.Fprintf(b, `\f0\fs%d\cf%d `, base, colText)
+				flush(i)
+				cs := st
+				cs.Code = true
+				cs.Size = st.Size - 2
+				sink.Text(string(r[i+1:j]), src[i+1:j], cs)
 				i = j + 1
+				runStart = i
 			} else {
-				writeRuneText(b, c)
 				i++
 			}
 
 		case c == '*' && i+1 < len(r) && r[i+1] == '*':
 			if j := indexSeq(r, i+2, "**"); j > i+2 {
-				b.WriteString(`\b `)
-				writeInline(b, string(r[i+2:j]), base)
-				b.WriteString(`\b0 `)
+				flush(i)
+				bs := st
+				bs.Bold = true
+				walkInline(r[i+2:j], src[i+2:j], bs, sink)
 				i = j + 2
+				runStart = i
 			} else {
-				writeText(b, "**")
 				i += 2
 			}
 
 		case c == '_' && i+1 < len(r) && r[i+1] == '_':
 			if j := indexSeq(r, i+2, "__"); j > i+2 {
-				b.WriteString(`\b `)
-				writeInline(b, string(r[i+2:j]), base)
-				b.WriteString(`\b0 `)
+				flush(i)
+				bs := st
+				bs.Bold = true
+				walkInline(r[i+2:j], src[i+2:j], bs, sink)
 				i = j + 2
+				runStart = i
 			} else {
-				writeText(b, "__")
 				i += 2
-			}
-
-		case c == '*' || c == '_':
-			if j := indexRune(r, i+1, c); j > i+1 {
-				b.WriteString(`\i `)
-				writeInline(b, string(r[i+1:j]), base)
-				b.WriteString(`\i0 `)
-				i = j + 1
-			} else {
-				writeRuneText(b, c)
-				i++
 			}
 
 		case c == '~' && i+1 < len(r) && r[i+1] == '~':
 			if j := indexSeq(r, i+2, "~~"); j > i+2 {
-				b.WriteString(`\strike `)
-				writeInline(b, string(r[i+2:j]), base)
-				b.WriteString(`\strike0 `)
+				flush(i)
+				ss := st
+				ss.Strike = true
+				walkInline(r[i+2:j], src[i+2:j], ss, sink)
 				i = j + 2
+				runStart = i
 			} else {
-				writeText(b, "~~")
 				i += 2
 			}
 
@@ -259,69 +401,73 @@ func writeInline(b *bytes.Buffer, s string, base int) {
 			if j := indexSeq(r, i+2, "]("); j >= 0 {
 				k := indexRune(r, j+2, ')')
 				if k >= 0 {
-					alt := string(r[i+2:j])
+					alt := string(r[i+2 : j])
 					url := strings.TrimSpace(string(r[j+2 : k]))
-					if writeImage(b, url) {
+					flush(i)
+					if sink.Image(url, src[i]) {
 						i = k + 1
+						runStart = i
 						continue
 					}
-					b.WriteString(`\cf2 [image: `)
-					writeInline(b, alt, base)
-					b.WriteString(`] \cf1 `)
+					sink.Text("[image: "+alt+"]", syntheticSrc(len([]rune("[image: "+alt+"]"))), st)
 					i = k + 1
+					runStart = i
 					continue
 				}
 			}
-			writeRuneText(b, c)
 			i++
 
 		case c == '[':
 			if j := indexSeq(r, i+1, "]("); j >= 0 {
 				k := indexRune(r, j+2, ')')
 				if k >= 0 {
-					b.WriteString(`\ul\cf4 `)
-					writeInline(b, string(r[i+1:j]), base)
-					b.WriteString(`\ul0\cf1 `)
+					flush(i)
+					ls := st
+					ls.Underline = true
+					ls.Color = colLink
+					walkInline(r[i+1:j], src[i+1:j], ls, sink)
 					i = k + 1
+					runStart = i
 					continue
 				}
 			}
-			writeRuneText(b, c)
 			i++
 
 		case c == '<':
 			if j := indexRune(r, i+1, '>'); j >= 0 {
-				b.WriteString(`\f1\fs` + strconv.Itoa(base-2) + `\cf2 `)
-				writeText(b, string(r[i:j+1]))
-				fmt.Fprintf(b, `\f0\fs%d\cf%d `, base, colText)
+				flush(i)
+				cs := st
+				cs.Code = true
+				cs.Size = st.Size - 2
+				sink.Text(string(r[i:j+1]), src[i:j+1], cs)
 				i = j + 1
+				runStart = i
 			} else {
-				writeRuneText(b, c)
 				i++
 			}
 
 		default:
-			writeRuneText(b, c)
 			i++
 		}
 	}
+	flush(len(r))
 }
 
-func indexRune(r []rune, from int, ch rune) int {
+func indexRune(r []rune, from int, want rune) int {
 	for i := from; i < len(r); i++ {
-		if r[i] == ch {
+		if r[i] == want {
 			return i
 		}
 	}
 	return -1
 }
 
-func indexSeq(r []rune, from int, s string) int {
-	seq := []rune(s)
-	for i := from; i+len(seq) <= len(r); i++ {
+func indexSeq(r []rune, from int, seq string) int {
+	s := []rune(seq)
+	for i := from; i+len(s) <= len(r); i++ {
 		ok := true
-		for j := range seq {
-			if r[i+j] != seq[j] {
+		for j := range s {
+			if r[i+j] != s[j] {
 				ok = false
 				break
 			}
@@ -354,24 +500,20 @@ func writeRuneText(b *bytes.Buffer, r rune) {
 	default:
 		if r < 128 {
 			b.WriteByte(byte(r))
-			return
-		}
-		if r <= 0xFFFF {
+		} else if r <= 0xFFFF {
 			fmt.Fprintf(b, `\u%d?`, int16(r))
-			return
+		} else {
+			r -= 0x10000
+			hi := 0xD800 + (r >> 10)
+			lo := 0xDC00 + (r & 0x3FF)
+			fmt.Fprintf(b, `\u%d?\u%d?`, int16(hi), int16(lo))
 		}
-		r -= 0x10000
-		hi := 0xD800 + (r >> 10)
-		lo := 0xDC00 + (r & 0x3FF)
-		fmt.Fprintf(b, `\u%d?\u%d?`, int16(hi), int16(lo))
 	}
 }
 
-
 type imgCacheEntry struct {
-	rtf  string
-	mod  int64
-	size int64
+	rtf string
+	mod int64
 }
 
 var imgCache = map[string]imgCacheEntry{}
@@ -381,20 +523,17 @@ func writeImage(b *bytes.Buffer, url string) bool {
 		return false
 	}
 	path := url
-	if u, err := neturl.PathUnescape(path); err == nil {
-		path = u
-	}
-	if strings.HasPrefix(path, "file://") {
-		path = strings.TrimPrefix(path, "file://")
+	if unescaped, err := neturl.PathUnescape(url); err == nil {
+		path = unescaped
 	}
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(docDir, path)
 	}
-	st, err := os.Stat(path)
+	info, err := os.Stat(path)
 	if err != nil {
 		return false
 	}
-	if hit, ok := imgCache[path]; ok && hit.mod == st.ModTime().UnixNano() && hit.size == st.Size() {
+	if hit, ok := imgCache[path]; ok && hit.mod == info.ModTime().UnixNano() {
 		b.WriteString(hit.rtf)
 		return true
 	}
@@ -407,34 +546,36 @@ func writeImage(b *bytes.Buffer, url string) bool {
 		return false
 	}
 	ext := strings.ToLower(filepath.Ext(path))
-	blip := "\\pngblip"
 	if ext != ".png" {
 		img, _, err := image.Decode(bytes.NewReader(data))
 		if err != nil {
 			return false
 		}
-		var pngBuf bytes.Buffer
-		if err := png.Encode(&pngBuf, img); err != nil {
+		var out bytes.Buffer
+		if err := png.Encode(&out, img); err != nil {
 			return false
 		}
-		data = pngBuf.Bytes()
+		data = out.Bytes()
 	}
+	const maxWidth = 640
 	w, h := cfg.Width, cfg.Height
-	const maxW = 640
-	if w > maxW {
-		h = h * maxW / w
-		w = maxW
+	if w > maxWidth {
+		h = h * maxWidth / w
+		w = maxWidth
 	}
-	dpi := docDPI
-	if dpi <= 0 {
-		dpi = 96
+	if w < 1 {
+		w = 1
 	}
-	tw := func(px int) int { return px * 1440 / dpi }
+	if h < 1 {
+		h = 1
+	}
+	tw := w * 1440 / docDPI
+	th := h * 1440 / docDPI
 	var pic bytes.Buffer
-	fmt.Fprintf(&pic, `{\pict%s\picw%d\pich%d\picwgoal%d\pichgoal%d `, blip, w, h, tw(w), tw(h))
+	fmt.Fprintf(&pic, `{\pict\pngblip\picw%d\pich%d\picwgoal%d\pichgoal%d `, w, h, tw, th)
 	pic.WriteString(hex.EncodeToString(data))
 	pic.WriteString(`}`)
-	imgCache[path] = imgCacheEntry{rtf: pic.String(), mod: st.ModTime().UnixNano(), size: st.Size()}
+	imgCache[path] = imgCacheEntry{rtf: pic.String(), mod: info.ModTime().UnixNano()}
 	b.WriteString(pic.String())
 	return true
 }
