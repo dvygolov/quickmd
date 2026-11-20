@@ -22,6 +22,7 @@ const (
 	TIMER_FOCUS       = 6
 	TIMER_CLIPRESTORE = 4
 	TIMER_PREVIEW     = 10
+	TIMER_PREVIEW_RETRY = 11
 	CF_UNICODETEXT = 13
 )
 
@@ -65,6 +66,7 @@ var (
 	logFile      *os.File
 	logDir       string
 	previewDirty bool
+	previewRetry int
 )
 
 func messageBox(text string) {
@@ -138,7 +140,7 @@ func main() {
 	hwnd, _, err := pCreateWindowExW.Call(
 		0,
 		uintptr(unsafe.Pointer(classNamePtr)),
-		uintptr(unsafe.Pointer(utf16Ptr("QuickMD"))),
+		uintptr(unsafe.Pointer(utf16Ptr(appName+" "+appVersion))),
 		uintptr(WS_OVERLAPPEDWINDOW),
 		x, y, w, h,
 		0, menu, hInstance, 0,
@@ -270,6 +272,9 @@ func wndProc(hwnd, msg, wp, lp uintptr) uintptr {
 			pollText()
 		case TIMER_PREVIEW:
 			pollPreview()
+		case TIMER_PREVIEW_RETRY:
+			pKillTimer.Call(hwnd, TIMER_PREVIEW_RETRY)
+			renderPreview()
 		case TIMER_FOCUS:
 			pKillTimer.Call(hwnd, TIMER_FOCUS)
 			focusWindow(hwnd)
@@ -577,7 +582,7 @@ func renderPreview() {
 	previewValid = len(plain) == len(mapping)
 	actual := []rune(getText(hPreview))
 	if !runesEqual(actual, plain) {
-		dbg("preview text mismatch: builder=%d actual=%d", len(plain), len(actual))
+		dbg("preview text mismatch: builder=%d actual=%d retry=%d", len(plain), len(actual), previewRetry)
 		n := len(plain)
 		if len(actual) < n {
 			n = len(actual)
@@ -593,6 +598,12 @@ func renderPreview() {
 			}
 		}
 		previewValid = false
+		if previewRetry < 4 && len(plain) > 0 {
+			previewRetry++
+			pSetTimer.Call(hwndMain, TIMER_PREVIEW_RETRY, 250, 0)
+		}
+	} else {
+		previewRetry = 0
 	}
 }
 
@@ -710,7 +721,7 @@ func updateTitle() {
 	if isDirty {
 		mark = " *"
 	}
-	pSetWindowTitle(name + mark + " — QuickMD")
+	pSetWindowTitle(name + mark + " — " + appName + " " + appVersion)
 }
 
 func pSetWindowTitle(s string) {

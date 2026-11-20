@@ -77,7 +77,7 @@ func handleCommand(id int) {
 	case ID_EDIT_SELECT:
 		sendMsg(hCode, EM_SETSEL, 0, ^uintptr(0))
 	case ID_HELP_ABOUT:
-		messageBox("QuickMD — быстрый редактор Markdown.\n\n" +
+		messageBox(appName+" "+appVersion+" — быстрый редактор Markdown.\n\n" +
 			"Слева исходник, справа живой предпросмотр.\n" +
 			"Правки в предпросмотре попадают в исходник.\n\n" +
 			"Ctrl+B — жирный, Ctrl+I — курсив, Ctrl+U — подчёркнутый,\n" +
