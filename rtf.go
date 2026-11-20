@@ -385,6 +385,18 @@ func walkInline(r []rune, src []int, st Style, sink Sink) {
 				i += 2
 			}
 
+		case c == '*' || c == '_':
+			if j := indexRune(r, i+1, c); j > i+1 {
+				flush(i)
+				is := st
+				is.Italic = true
+				walkInline(r[i+1:j], src[i+1:j], is, sink)
+				i = j + 1
+				runStart = i
+			} else {
+				i++
+			}
+
 		case c == '~' && i+1 < len(r) && r[i+1] == '~':
 			if j := indexSeq(r, i+2, "~~"); j > i+2 {
 				flush(i)
