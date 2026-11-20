@@ -29,28 +29,28 @@ func appendMenuItem(menu uintptr, flags uintptr, id uintptr, text string) {
 // buildMenu creates the application main menu.
 func buildMenu() uintptr {
 	file, _, _ := pCreatePopupMenu.Call()
-	appendMenuItem(file, MF_STRING, ID_FILE_OPEN, "&Открыть...\tCtrl+O")
-	appendMenuItem(file, MF_STRING, ID_FILE_SAVE, "&Сохранить\tCtrl+S")
-	appendMenuItem(file, MF_STRING, ID_FILE_SAVEAS, "Сохранить &как...\tCtrl+Shift+S")
+	appendMenuItem(file, MF_STRING, ID_FILE_OPEN, "&Open...\tCtrl+O")
+	appendMenuItem(file, MF_STRING, ID_FILE_SAVE, "&Save\tCtrl+S")
+	appendMenuItem(file, MF_STRING, ID_FILE_SAVEAS, "Save &As...\tCtrl+Shift+S")
 	appendMenuItem(file, MF_SEPARATOR, 0, "")
-	appendMenuItem(file, MF_STRING, ID_FILE_EXIT, "В&ыход\tAlt+F4")
+	appendMenuItem(file, MF_STRING, ID_FILE_EXIT, "E&xit\tAlt+F4")
 
 	edit, _, _ := pCreatePopupMenu.Call()
-	appendMenuItem(edit, MF_STRING, ID_EDIT_UNDO, "&Отменить\tCtrl+Z")
-	appendMenuItem(edit, MF_STRING, ID_EDIT_REDO, "&Повторить\tCtrl+Y")
+	appendMenuItem(edit, MF_STRING, ID_EDIT_UNDO, "&Undo\tCtrl+Z")
+	appendMenuItem(edit, MF_STRING, ID_EDIT_REDO, "&Redo\tCtrl+Y")
 	appendMenuItem(edit, MF_SEPARATOR, 0, "")
-	appendMenuItem(edit, MF_STRING, ID_EDIT_CUT, "Вы&резать\tCtrl+X")
-	appendMenuItem(edit, MF_STRING, ID_EDIT_COPY, "&Копировать\tCtrl+C")
-	appendMenuItem(edit, MF_STRING, ID_EDIT_PASTE, "&Вставить\tCtrl+V")
-	appendMenuItem(edit, MF_STRING, ID_EDIT_SELECT, "Выделить &всё\tCtrl+A")
+	appendMenuItem(edit, MF_STRING, ID_EDIT_CUT, "Cu&t\tCtrl+X")
+	appendMenuItem(edit, MF_STRING, ID_EDIT_COPY, "&Copy\tCtrl+C")
+	appendMenuItem(edit, MF_STRING, ID_EDIT_PASTE, "&Paste\tCtrl+V")
+	appendMenuItem(edit, MF_STRING, ID_EDIT_SELECT, "Select &All\tCtrl+A")
 
 	help, _, _ := pCreatePopupMenu.Call()
-	appendMenuItem(help, MF_STRING, ID_HELP_ABOUT, "&О программе")
+	appendMenuItem(help, MF_STRING, ID_HELP_ABOUT, "&About")
 
 	main, _, _ := pCreateMenu.Call()
-	appendMenuItem(main, MF_POPUP, file, "&Файл")
-	appendMenuItem(main, MF_POPUP, edit, "&Правка")
-	appendMenuItem(main, MF_POPUP, help, "&Справка")
+	appendMenuItem(main, MF_POPUP, file, "&File")
+	appendMenuItem(main, MF_POPUP, edit, "&Edit")
+	appendMenuItem(main, MF_POPUP, help, "&Help")
 	return main
 }
 
@@ -77,11 +77,11 @@ func handleCommand(id int) {
 	case ID_EDIT_SELECT:
 		sendMsg(hCode, EM_SETSEL, 0, ^uintptr(0))
 	case ID_HELP_ABOUT:
-		messageBox(appName + " " + appVersion + " — быстрый редактор Markdown.\n\n" +
-			"Слева исходник, справа живой предпросмотр.\n" +
-			"Правки в предпросмотре попадают в исходник.\n\n" +
-			"Ctrl+B — жирный, Ctrl+I — курсив, Ctrl+U — подчёркнутый,\n" +
-			"Ctrl+Shift+M — код, Ctrl+Shift+X — зачёркнутый.")
+		messageBox(appName + " " + appVersion + " — a fast native Markdown editor.\n\n" +
+			"Source on the left, live preview on the right.\n" +
+			"Edits made in the preview are written back to the source.\n\n" +
+			"Ctrl+B bold, Ctrl+I italic, Ctrl+U underline,\n" +
+			"Ctrl+Shift+M code, Ctrl+Shift+X strikethrough.")
 	}
 }
 
@@ -92,7 +92,7 @@ func confirmDiscard() bool {
 	}
 	r, _, _ := pMessageBoxW.Call(
 		hwndMain,
-		uintptr(unsafe.Pointer(utf16Ptr("Сохранить изменения перед продолжением?"))),
+		uintptr(unsafe.Pointer(utf16Ptr("Save changes before continuing?"))),
 		uintptr(unsafe.Pointer(utf16Ptr("QuickMD"))),
 		uintptr(MB_YESNOCANCEL|MB_ICONQUESTION),
 	)
@@ -114,7 +114,7 @@ func closeApp() {
 }
 
 func markdownFilter() *uint16 {
-	return utf16Ptr("Markdown (*.md;*.markdown;*.mdx)\x00*.md;*.markdown;*.mdx\x00Все файлы (*.*)\x00*.*\x00\x00")
+	return utf16Ptr("Markdown (*.md;*.markdown;*.mdx)\x00*.md;*.markdown;*.mdx\x00All files (*.*)\x00*.*\x00\x00")
 }
 
 func openFileDialog() {
@@ -123,7 +123,7 @@ func openFileDialog() {
 	}
 	buf := make([]uint16, 4096)
 	filter := markdownFilter()
-	title := utf16Ptr("Открыть Markdown")
+	title := utf16Ptr("Open Markdown")
 	ofn := OPENFILENAMEW{
 		LStructSize: uint32(unsafe.Sizeof(OPENFILENAMEW{})),
 		HwndOwner:   hwndMain,
@@ -149,7 +149,7 @@ func saveFileAs() {
 		copy(buf, syscall.StringToUTF16(filePath))
 	}
 	filter := markdownFilter()
-	title := utf16Ptr("Сохранить как")
+	title := utf16Ptr("Save As")
 	defExt := utf16Ptr("md")
 	ofn := OPENFILENAMEW{
 		LStructSize: uint32(unsafe.Sizeof(OPENFILENAMEW{})),

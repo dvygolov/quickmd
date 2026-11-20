@@ -22,36 +22,41 @@ var (
 	inputDone    bool
 	inputOK      bool
 	inputText    string
+	inputLabel   string
 )
 
 func inputWndProc(hwnd, msg, wp, lp uintptr) uintptr {
 	switch msg {
 	case WM_CREATE:
 		inputHwnd = hwnd
+		// Scale the dialog layout to the current DPI, otherwise the labels and
+		// the edit control are clipped by the font at 125%/150% scaling.
+		s := float64(docDPI) / 96.0
+		px := func(v int) int { return int(float64(v)*s + 0.5) }
 		label, _, _ := pCreateWindowExW.Call(0,
 			uintptr(unsafe.Pointer(utf16Ptr("STATIC"))),
-			uintptr(unsafe.Pointer(utf16Ptr("URL ссылки:"))),
+			uintptr(unsafe.Pointer(utf16Ptr(inputLabel))),
 			uintptr(WS_CHILD|WS_VISIBLE),
-			16, 14, 460, 20,
+			uintptr(px(16)), uintptr(px(16)), uintptr(px(440)), uintptr(px(20)),
 			hwnd, 0, hInstance, 0)
 		edit, _, _ := pCreateWindowExW.Call(WS_EX_CLIENTEDGE,
 			uintptr(unsafe.Pointer(utf16Ptr("EDIT"))),
 			uintptr(unsafe.Pointer(utf16Ptr(""))),
 			uintptr(WS_CHILD|WS_VISIBLE|WS_TABSTOP|ES_AUTOHSCROLL),
-			16, 40, 460, 26,
+			uintptr(px(16)), uintptr(px(46)), uintptr(px(440)), uintptr(px(26)),
 			hwnd, idLinkEdit, hInstance, 0)
 		inputEdit = edit
 		okBtn, _, _ := pCreateWindowExW.Call(0,
 			uintptr(unsafe.Pointer(utf16Ptr("BUTTON"))),
 			uintptr(unsafe.Pointer(utf16Ptr("OK"))),
 			uintptr(WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_DEFPUSHBUTTON),
-			270, 82, 100, 30,
+			uintptr(px(266)), uintptr(px(92)), uintptr(px(90)), uintptr(px(28)),
 			hwnd, idLinkOK, hInstance, 0)
 		cancelBtn, _, _ := pCreateWindowExW.Call(0,
 			uintptr(unsafe.Pointer(utf16Ptr("BUTTON"))),
-			uintptr(unsafe.Pointer(utf16Ptr("Отмена"))),
+			uintptr(unsafe.Pointer(utf16Ptr("Cancel"))),
 			uintptr(WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON),
-			376, 82, 100, 30,
+			uintptr(px(366)), uintptr(px(92)), uintptr(px(90)), uintptr(px(28)),
 			hwnd, idLinkCancel, hInstance, 0)
 		if uiFont != 0 {
 			for _, c := range []uintptr{label, edit, okBtn, cancelBtn} {
@@ -119,7 +124,9 @@ func promptText(title, label, initial string) (string, bool) {
 
 	var rc RECT
 	pGetWindowRect.Call(hwndMain, uintptr(unsafe.Pointer(&rc)))
-	w, h := 520, 170
+	s := float64(docDPI) / 96.0
+	px := func(v int) int { return int(float64(v)*s + 0.5) }
+	w, h := px(480), px(180)
 	x := int(rc.Left) + (int(rc.Right-rc.Left)-w)/2
 	y := int(rc.Top) + (int(rc.Bottom-rc.Top)-h)/2
 
@@ -206,7 +213,8 @@ func insertLink(h uintptr) {
 		selected = strings.TrimSpace(selected)
 	}
 
-	url, ok := promptText("Вставить ссылку", "URL:", "")
+	inputLabel = "Link URL:"
+	url, ok := promptText("Insert Link", "Link URL:", "")
 	if !ok {
 		return
 	}

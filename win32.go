@@ -94,6 +94,22 @@ var (
 
 	pCreateFontW      = gdi32.NewProc("CreateFontW")
 	pCreateSolidBrush = gdi32.NewProc("CreateSolidBrush")
+	pSelectObject     = gdi32.NewProc("SelectObject")
+
+	pGetDC             = user32.NewProc("GetDC")
+	pReleaseDC         = user32.NewProc("ReleaseDC")
+	pGetCursorPos      = user32.NewProc("GetCursorPos")
+	pDrawTextW         = user32.NewProc("DrawTextW")
+	pMonitorFromWindow = user32.NewProc("MonitorFromWindow")
+	pGetMonitorInfoW   = user32.NewProc("GetMonitorInfoW")
+	pBeginPaint        = user32.NewProc("BeginPaint")
+	pEndPaint          = user32.NewProc("EndPaint")
+	pClientToScreen    = user32.NewProc("ClientToScreen")
+	pStretchDIBits     = gdi32.NewProc("StretchDIBits")
+	pSetStretchBltMode = gdi32.NewProc("SetStretchBltMode")
+	pPatBlt            = gdi32.NewProc("PatBlt")
+	pSetTextColor      = gdi32.NewProc("SetTextColor")
+	pSetBkMode         = gdi32.NewProc("SetBkMode")
 )
 
 // Constants ----------------------------------------------------------------
@@ -106,6 +122,7 @@ const (
 	WS_EX_DLGMODALFRAME = 0x00000001
 	WS_EX_CONTROLPARENT = 0x00010000
 	WS_EX_CLIENTEDGE    = 0x00000200
+	WS_EX_TOPMOST       = 0x00000008
 	BS_DEFPUSHBUTTON    = 0x0001
 	BS_PUSHBUTTON       = 0x0000
 	ES_AUTOHSCROLL      = 0x0080
@@ -121,26 +138,34 @@ const (
 	ES_WANTRETURN  = 0x1000
 	ES_NOHIDESEL   = 0x0100
 
-	WM_CREATE     = 0x0001
-	WM_DESTROY    = 0x0002
-	WM_SIZE       = 0x0005
-	WM_SETFOCUS   = 0x0007
-	WM_ACTIVATE   = 0x0006
-	WM_NOTIFY     = 0x004E
-	WM_CHAR       = 0x0102
-	WM_VSCROLL    = 0x0115
-	WM_MOUSEWHEEL = 0x020A
-	WM_KEYUP      = 0x0101
-	WM_SETICON    = 0x0080
-	WM_CLOSE      = 0x0010
-	WM_SETTEXT    = 0x000C
-	WM_GETTEXT    = 0x000D
-	WM_KEYDOWN    = 0x0100
-	WM_TIMER      = 0x0113
-	WM_COMMAND    = 0x0111
-	WM_SETFONT    = 0x0030
-	WM_SETREDRAW  = 0x000B
-	WM_GETDLGCODE = 0x0087
+	WM_CREATE         = 0x0001
+	WM_DESTROY        = 0x0002
+	WM_SIZE           = 0x0005
+	WM_SETFOCUS       = 0x0007
+	WM_ACTIVATE       = 0x0006
+	WM_NOTIFY         = 0x004E
+	WM_CHAR           = 0x0102
+	WM_VSCROLL        = 0x0115
+	WM_MOUSEWHEEL     = 0x020A
+	WM_KEYUP          = 0x0101
+	WM_SETICON        = 0x0080
+	WM_CLOSE          = 0x0010
+	WM_SETTEXT        = 0x000C
+	WM_GETTEXT        = 0x000D
+	WM_KEYDOWN        = 0x0100
+	WM_TIMER          = 0x0113
+	WM_COMMAND        = 0x0111
+	WM_SETFONT        = 0x0030
+	WM_SETREDRAW      = 0x000B
+	WM_GETDLGCODE     = 0x0087
+	WM_PAINT          = 0x000F
+	WM_ERASEBKGND     = 0x0014
+	WM_SETCURSOR      = 0x0020
+	WM_LBUTTONDOWN    = 0x0201
+	WM_LBUTTONDBLCLK  = 0x0203
+	WM_CTLCOLORSTATIC = 0x0138
+	WM_CTLCOLOREDIT   = 0x0133
+	WM_RBUTTONDOWN    = 0x0204
 
 	EN_CHANGE  = 0x0300
 	ENM_CHANGE = 0x00000001
@@ -231,6 +256,18 @@ const (
 	MB_ICONWARNING  = 0x00000030
 	IDYES           = 6
 	IDNO            = 7
+
+	SRCCOPY                  = 0x00CC0020
+	BLACKNESS                = 0x00000042
+	HALFTONE                 = 4
+	TRANSPARENT              = 1
+	DT_CENTER                = 0x0001
+	DT_BOTTOM                = 0x0008
+	DT_SINGLELINE            = 0x0020
+	DT_NOPREFIX              = 0x0800
+	MONITOR_DEFAULTTONEAREST = 2
+	IDC_ARROW                = 32512
+	IDC_HAND                 = 32649
 )
 
 // Structs ------------------------------------------------------------------
@@ -370,6 +407,36 @@ type OPENFILENAMEW struct {
 	PvReserved        uintptr
 	DwReserved        uint32
 	FlagsEx           uint32
+}
+
+type PAINTSTRUCT struct {
+	Hdc       uintptr
+	Erase     int32
+	RcPaint   RECT
+	Restore   int32
+	IncUpdate int32
+	Reserved  [32]byte
+}
+
+type MONITORINFO struct {
+	CbSize    uint32
+	RcMonitor RECT
+	RcWork    RECT
+	DwFlags   uint32
+}
+
+type BITMAPINFOHEADER struct {
+	BiSize          uint32
+	BiWidth         int32
+	BiHeight        int32
+	BiPlanes        uint16
+	BiBitCount      uint16
+	BiCompression   uint32
+	BiSizeImage     uint32
+	BiXPelsPerMeter int32
+	BiYPelsPerMeter int32
+	BiClrUsed       uint32
+	BiClrImportant  uint32
 }
 
 type EDITSTREAM struct {

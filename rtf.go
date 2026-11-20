@@ -125,8 +125,15 @@ func (s *plainSink) Text(text string, src []int, st Style) {
 }
 
 func (s *plainSink) Image(url string, src int) bool {
-	s.p.text = append(s.p.text, '\uFFFC')
+	// RichEdit reports an inline picture as a space in its text stream, so the
+	// plain preview text uses a space too: that keeps the builder's text and the
+	// control's text identical, which is what enables preview -> source sync.
+	s.p.text = append(s.p.text, ' ')
 	s.p.src = append(s.p.src, src)
+	if s.p.images == nil {
+		s.p.images = make(map[int]string)
+	}
+	s.p.images[len(s.p.text)-1] = resolveImagePath(url)
 	return true
 }
 
@@ -151,9 +158,10 @@ func (m *multiSink) Image(url string, src int) bool {
 // previewBuilder accumulates the RTF output, the plain text shown in the
 // preview and the source offset of every visible rune.
 type previewBuilder struct {
-	text []rune
-	src  []int
-	rtf  bytes.Buffer
+	text   []rune
+	src    []int
+	images map[int]string
+	rtf    bytes.Buffer
 }
 
 func (p *previewBuilder) newline(srcByte int) {
@@ -318,7 +326,7 @@ func renderBlock(p *previewBuilder, blk Block) {
 
 // renderPreviewDoc renders the document once and returns the RTF, the visible
 // text and the source offset of every visible rune.
-func renderPreviewDoc(d *Doc) ([]byte, []rune, []int) {
+func renderPreviewDoc(d *Doc) ([]byte, []rune, []int, map[int]string) {
 	p := &previewBuilder{}
 	p.rtf.WriteString(rtfHeader())
 	renderFrontMatter(p, d)
@@ -328,7 +336,7 @@ func renderPreviewDoc(d *Doc) ([]byte, []rune, []int) {
 	p.rtf.WriteString(`\pard\f0\fs2\cf1 `)
 	p.newline(len(d.Source))
 	p.rtf.WriteString(`}`)
-	return p.rtf.Bytes(), p.text, p.src
+	return p.rtf.Bytes(), p.text, p.src, p.images
 }
 
 func walkInline(r []rune, src []int, st Style, sink Sink) {
@@ -530,9 +538,9 @@ type imgCacheEntry struct {
 
 var imgCache = map[string]imgCacheEntry{}
 
-func writeImage(b *bytes.Buffer, url string) bool {
+func resolveImagePath(url string) string {
 	if url == "" {
-		return false
+		return ""
 	}
 	path := url
 	if unescaped, err := neturl.PathUnescape(url); err == nil {
@@ -541,6 +549,14 @@ func writeImage(b *bytes.Buffer, url string) bool {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(docDir, path)
 	}
+	return path
+}
+
+func writeImage(b *bytes.Buffer, url string) bool {
+	if url == "" {
+		return false
+	}
+	path := resolveImagePath(url)
 	info, err := os.Stat(path)
 	if err != nil {
 		return false

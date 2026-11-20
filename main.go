@@ -63,13 +63,14 @@ var (
 	pendingClip    clipState
 	hasPendingClip bool
 
-	classNamePtr *uint16
-	hInstance    uintptr
-	logFile      *os.File
-	logDir       string
-	previewDirty bool
-	previewRetry int
-	uiFont       uintptr
+	classNamePtr  *uint16
+	hInstance     uintptr
+	logFile       *os.File
+	logDir        string
+	previewDirty  bool
+	previewRetry  int
+	uiFont        uintptr
+	previewImages map[int]string
 )
 
 func messageBox(text string) {
@@ -98,7 +99,7 @@ func main() {
 	}
 
 	if err := msftedit.Load(); err != nil {
-		messageBox("Не удалось загрузить RichEdit:\n" + err.Error())
+		messageBox("Could not load RichEdit:\n" + err.Error())
 		return
 	}
 	setDPIAware()
@@ -365,6 +366,11 @@ func editWndProc(hwnd, msg, wp, lp uintptr) uintptr {
 }
 
 func previewWndProc(hwnd, msg, wp, lp uintptr) uintptr {
+	if msg == WM_LBUTTONDBLCLK {
+		if openPreviewImage() {
+			return 0
+		}
+	}
 	if msg == WM_CHAR {
 		if pendingChar != 0 {
 			if wp == pendingChar {
@@ -471,7 +477,7 @@ func loadFile() {
 	}
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		messageBox("Не удалось открыть файл:\n" + err.Error())
+		messageBox("Could not open file:\n" + err.Error())
 		return
 	}
 	text := strings.TrimPrefix(string(data), "\ufeff")
@@ -581,12 +587,12 @@ func saveFile() {
 	tmp := filePath + ".quickmd.tmp"
 	if err := os.WriteFile(tmp, []byte(text), 0644); err != nil {
 		dbg("write failed: %v", err)
-		messageBox("Не удалось сохранить файл:\n" + err.Error())
+		messageBox("Could not save file:\n" + err.Error())
 		return
 	}
 	if err := os.Rename(tmp, filePath); err != nil {
 		dbg("rename failed: %v", err)
-		messageBox("Не удалось сохранить файл:\n" + err.Error())
+		messageBox("Could not save file:\n" + err.Error())
 		os.Remove(tmp)
 		return
 	}
@@ -623,10 +629,11 @@ func renderPreview() {
 	src := getText(hCode)
 	srcText = src
 	doc := parseMarkdown(src)
-	rtf, plain, mapping := renderPreviewDoc(doc)
+	rtf, plain, mapping, images := renderPreviewDoc(doc)
 	setRTF(hPreview, [][]byte{rtf})
 	previewText = plain
 	previewSrc = mapping
+	previewImages = images
 	previewValid = len(plain) == len(mapping)
 	actual := []rune(getText(hPreview))
 	if !runesEqual(actual, plain) {
@@ -761,7 +768,7 @@ func clipboardSetRTF(data []byte) bool {
 }
 
 func updateTitle() {
-	name := "Без имени"
+	name := "Untitled"
 	if filePath != "" {
 		name = filepath.Base(filePath)
 	}
