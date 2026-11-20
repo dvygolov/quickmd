@@ -20,12 +20,12 @@ const (
 	VK_RETURN  = 0x0D
 	VK_ESCAPE  = 0x1B
 
-	TIMER_POLL        = 9
-	TIMER_FOCUS       = 6
-	TIMER_CLIPRESTORE = 4
-	TIMER_PREVIEW     = 10
+	TIMER_POLL          = 9
+	TIMER_FOCUS         = 6
+	TIMER_CLIPRESTORE   = 4
+	TIMER_PREVIEW       = 10
 	TIMER_PREVIEW_RETRY = 11
-	CF_UNICODETEXT = 13
+	CF_UNICODETEXT      = 13
 )
 
 type snapshot struct {
@@ -43,9 +43,9 @@ var (
 	hCode    uintptr
 	hPreview uintptr
 
-	wndProcPtr  uintptr
-	editProcPtr uintptr
-	oldEditProc uintptr
+	wndProcPtr     uintptr
+	editProcPtr    uintptr
+	oldEditProc    uintptr
 	previewProcPtr uintptr
 	oldPreviewProc uintptr
 
@@ -59,8 +59,8 @@ var (
 	undoStack []snapshot
 	redoStack []snapshot
 
-	rtfFormat uintptr
-	pendingClip clipState
+	rtfFormat      uintptr
+	pendingClip    clipState
 	hasPendingClip bool
 
 	classNamePtr *uint16
@@ -316,6 +316,9 @@ func editWndProc(hwnd, msg, wp, lp uintptr) uintptr {
 			}
 			pendingChar = 0
 		}
+		if isControlChar(wp) {
+			return 0
+		}
 	}
 	if msg == WM_KEYUP {
 		pendingChar = 0
@@ -323,6 +326,18 @@ func editWndProc(hwnd, msg, wp, lp uintptr) uintptr {
 	if msg == WM_KEYDOWN {
 		if keyDown(VK_CONTROL) {
 			switch wp {
+			case 'A':
+				selectAll(hwnd)
+				return 0
+			case 'C':
+				sendMsg(hwnd, WM_COPY, 0, 0)
+				return 0
+			case 'X':
+				sendMsg(hwnd, WM_CUT, 0, 0)
+				return 0
+			case 'V':
+				sendMsg(hwnd, WM_PASTE, 0, 0)
+				return 0
 			case 'Z':
 				undoEdit()
 				return 0
@@ -350,8 +365,29 @@ func editWndProc(hwnd, msg, wp, lp uintptr) uintptr {
 }
 
 func previewWndProc(hwnd, msg, wp, lp uintptr) uintptr {
+	if msg == WM_CHAR {
+		if pendingChar != 0 {
+			if wp == pendingChar {
+				pendingChar = 0
+				return 0
+			}
+			pendingChar = 0
+		}
+		if isControlChar(wp) {
+			return 0
+		}
+	}
 	if msg == WM_KEYDOWN && keyDown(VK_CONTROL) {
 		switch wp {
+		case 'A':
+			selectAll(hwnd)
+			return 0
+		case 'C':
+			sendMsg(hwnd, WM_COPY, 0, 0)
+			return 0
+		case 'V':
+			sendMsg(hwnd, WM_PASTE, 0, 0)
+			return 0
 		case 'Z':
 			undoEdit()
 			return 0
@@ -480,6 +516,14 @@ func currentSel() CHARRANGE {
 	var cr CHARRANGE
 	sendMsg(hCode, EM_EXGETSEL, 0, uintptr(unsafe.Pointer(&cr)))
 	return cr
+}
+
+func isControlChar(wp uintptr) bool {
+	return wp < 0x20 && wp != 0x08 && wp != 0x09 && wp != 0x0A && wp != 0x0D
+}
+
+func selectAll(h uintptr) {
+	sendMsg(h, EM_SETSEL, 0, ^uintptr(0))
 }
 
 func setSelRange(start, end int32) {

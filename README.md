@@ -44,6 +44,8 @@ single ~2 MB Win32 executable written in Go: the window is ready in **~150 ms**.
   - `Ctrl+Shift+M` — monospace (`` `text` ``)
   - `Ctrl+Shift+X` — strikethrough (`~~text~~`)
   - `Ctrl+Shift+P` — spoiler (`||text||`)
+- `Ctrl+A` / `Ctrl+C` / `Ctrl+X` / `Ctrl+V` — select all, copy, cut and paste
+  (handled explicitly so the RichEdit control never inserts a control character).
 - `Ctrl+Z` / `Ctrl+Y` — undo and redo (snapshot-based, because RichEdit's own undo
   is lost when the preview is re-rendered).
 - Autosave ~1 s after the last edit, `Ctrl+S`, save on close, atomic writes.

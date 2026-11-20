@@ -9,17 +9,17 @@ import (
 )
 
 const (
-	ID_FILE_OPEN    = 40001
-	ID_FILE_SAVE    = 40002
-	ID_FILE_SAVEAS  = 40003
-	ID_FILE_EXIT    = 40004
-	ID_EDIT_UNDO    = 40010
-	ID_EDIT_REDO    = 40011
-	ID_EDIT_CUT     = 40012
-	ID_EDIT_COPY    = 40013
-	ID_EDIT_PASTE   = 40014
-	ID_EDIT_SELECT  = 40015
-	ID_HELP_ABOUT   = 40020
+	ID_FILE_OPEN   = 40001
+	ID_FILE_SAVE   = 40002
+	ID_FILE_SAVEAS = 40003
+	ID_FILE_EXIT   = 40004
+	ID_EDIT_UNDO   = 40010
+	ID_EDIT_REDO   = 40011
+	ID_EDIT_CUT    = 40012
+	ID_EDIT_COPY   = 40013
+	ID_EDIT_PASTE  = 40014
+	ID_EDIT_SELECT = 40015
+	ID_HELP_ABOUT  = 40020
 )
 
 func appendMenuItem(menu uintptr, flags uintptr, id uintptr, text string) {
@@ -77,7 +77,7 @@ func handleCommand(id int) {
 	case ID_EDIT_SELECT:
 		sendMsg(hCode, EM_SETSEL, 0, ^uintptr(0))
 	case ID_HELP_ABOUT:
-		messageBox(appName+" "+appVersion+" — быстрый редактор Markdown.\n\n" +
+		messageBox(appName + " " + appVersion + " — быстрый редактор Markdown.\n\n" +
 			"Слева исходник, справа живой предпросмотр.\n" +
 			"Правки в предпросмотре попадают в исходник.\n\n" +
 			"Ctrl+B — жирный, Ctrl+I — курсив, Ctrl+U — подчёркнутый,\n" +

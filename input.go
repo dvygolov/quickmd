@@ -187,8 +187,18 @@ func insertLink(h uintptr) {
 		start, end = end, start
 	}
 	text := getTextU16(h)
+	if end > len(text) {
+		end = len(text)
+	}
+	if start > end {
+		start = end
+	}
+	// Keep the trailing paragraph mark so the file keeps its final newline.
+	if end == len(text) && end > start && (text[end-1] == '\r' || text[end-1] == '\n') {
+		end--
+	}
 	selected := ""
-	if start < end && end <= len(text) {
+	if start < end {
 		selected = syscall.UTF16ToString(text[start:end])
 		selected = strings.ReplaceAll(selected, "\r\n", " ")
 		selected = strings.ReplaceAll(selected, "\r", " ")

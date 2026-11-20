@@ -17,77 +17,77 @@ var (
 )
 
 var (
-	pRegisterClassExW   = user32.NewProc("RegisterClassExW")
-	pCreateWindowExW    = user32.NewProc("CreateWindowExW")
-	pDefWindowProcW     = user32.NewProc("DefWindowProcW")
-	pDestroyWindow      = user32.NewProc("DestroyWindow")
-	pShowWindow         = user32.NewProc("ShowWindow")
-	pUpdateWindow       = user32.NewProc("UpdateWindow")
-	pGetMessageW        = user32.NewProc("GetMessageW")
-	pTranslateMessage   = user32.NewProc("TranslateMessage")
-	pDispatchMessageW   = user32.NewProc("DispatchMessageW")
-	pPostQuitMessage    = user32.NewProc("PostQuitMessage")
-	pSendMessageW       = user32.NewProc("SendMessageW")
-	pSetWindowLongPtrW  = user32.NewProc("SetWindowLongPtrW")
-	pCallWindowProcW    = user32.NewProc("CallWindowProcW")
-	pSetTimer           = user32.NewProc("SetTimer")
-	pKillTimer          = user32.NewProc("KillTimer")
-	pGetClientRect      = user32.NewProc("GetClientRect")
-	pGetWindowRect      = user32.NewProc("GetWindowRect")
-	pGetScrollInfo      = user32.NewProc("GetScrollInfo")
-	pMoveWindow         = user32.NewProc("MoveWindow")
-	pGetKeyState        = user32.NewProc("GetKeyState")
-	pGetFocus           = user32.NewProc("GetFocus")
-	pSetFocus           = user32.NewProc("SetFocus")
-	pPostMessage        = user32.NewProc("PostMessageW")
-	pLoadCursorW        = user32.NewProc("LoadCursorW")
-	pLoadIconW          = user32.NewProc("LoadIconW")
-	pMessageBoxW        = user32.NewProc("MessageBoxW")
-	pSetProcessDPIAware = user32.NewProc("SetProcessDPIAware")
+	pRegisterClassExW              = user32.NewProc("RegisterClassExW")
+	pCreateWindowExW               = user32.NewProc("CreateWindowExW")
+	pDefWindowProcW                = user32.NewProc("DefWindowProcW")
+	pDestroyWindow                 = user32.NewProc("DestroyWindow")
+	pShowWindow                    = user32.NewProc("ShowWindow")
+	pUpdateWindow                  = user32.NewProc("UpdateWindow")
+	pGetMessageW                   = user32.NewProc("GetMessageW")
+	pTranslateMessage              = user32.NewProc("TranslateMessage")
+	pDispatchMessageW              = user32.NewProc("DispatchMessageW")
+	pPostQuitMessage               = user32.NewProc("PostQuitMessage")
+	pSendMessageW                  = user32.NewProc("SendMessageW")
+	pSetWindowLongPtrW             = user32.NewProc("SetWindowLongPtrW")
+	pCallWindowProcW               = user32.NewProc("CallWindowProcW")
+	pSetTimer                      = user32.NewProc("SetTimer")
+	pKillTimer                     = user32.NewProc("KillTimer")
+	pGetClientRect                 = user32.NewProc("GetClientRect")
+	pGetWindowRect                 = user32.NewProc("GetWindowRect")
+	pGetScrollInfo                 = user32.NewProc("GetScrollInfo")
+	pMoveWindow                    = user32.NewProc("MoveWindow")
+	pGetKeyState                   = user32.NewProc("GetKeyState")
+	pGetFocus                      = user32.NewProc("GetFocus")
+	pSetFocus                      = user32.NewProc("SetFocus")
+	pPostMessage                   = user32.NewProc("PostMessageW")
+	pLoadCursorW                   = user32.NewProc("LoadCursorW")
+	pLoadIconW                     = user32.NewProc("LoadIconW")
+	pMessageBoxW                   = user32.NewProc("MessageBoxW")
+	pSetProcessDPIAware            = user32.NewProc("SetProcessDPIAware")
 	pSetProcessDpiAwarenessContext = user32.NewProc("SetProcessDpiAwarenessContext")
-	pSetForegroundWindow = user32.NewProc("SetForegroundWindow")
-	pBringWindowToTop  = user32.NewProc("BringWindowToTop")
-	pGetClipboardData  = user32.NewProc("GetClipboardData")
-	pGetForegroundWindow = user32.NewProc("GetForegroundWindow")
-	pGetWindowThreadProcessId = user32.NewProc("GetWindowThreadProcessId")
-	pAttachThreadInput = user32.NewProc("AttachThreadInput")
-	pSwitchToThisWindow = user32.NewProc("SwitchToThisWindow")
-	pGetCurrentThreadId = kernel32.NewProc("GetCurrentThreadId")
-	pKeybdEvent        = user32.NewProc("keybd_event")
-	pSetWindowPos      = user32.NewProc("SetWindowPos")
-	pSetCursorPos      = user32.NewProc("SetCursorPos")
-	pMouseEvent        = user32.NewProc("mouse_event")
-	pGlobalFree        = kernel32.NewProc("GlobalFree")
-	pGlobalSize        = kernel32.NewProc("GlobalSize")
-	pSetWindowTextW    = user32.NewProc("SetWindowTextW")
-	pGetSystemMetrics  = user32.NewProc("GetSystemMetrics")
-	pGetDpiForWindow   = user32.NewProc("GetDpiForWindow")
-	pInvalidateRect    = user32.NewProc("InvalidateRect")
-	pEnumWindows       = user32.NewProc("EnumWindows")
-	pEnumPropsExW      = user32.NewProc("EnumPropsExW")
-	pOpenClipboard     = user32.NewProc("OpenClipboard")
-	pEmptyClipboard    = user32.NewProc("EmptyClipboard")
-	pCloseClipboard    = user32.NewProc("CloseClipboard")
-	pSetClipboardData  = user32.NewProc("SetClipboardData")
-	pRegisterClipboardFormatW = user32.NewProc("RegisterClipboardFormatW")
-	pIsClipboardFormatAvailable = user32.NewProc("IsClipboardFormatAvailable")
-	pGlobalAlloc       = kernel32.NewProc("GlobalAlloc")
-	pGlobalLock        = kernel32.NewProc("GlobalLock")
-	pGlobalUnlock      = kernel32.NewProc("GlobalUnlock")
+	pSetForegroundWindow           = user32.NewProc("SetForegroundWindow")
+	pBringWindowToTop              = user32.NewProc("BringWindowToTop")
+	pGetClipboardData              = user32.NewProc("GetClipboardData")
+	pGetForegroundWindow           = user32.NewProc("GetForegroundWindow")
+	pGetWindowThreadProcessId      = user32.NewProc("GetWindowThreadProcessId")
+	pAttachThreadInput             = user32.NewProc("AttachThreadInput")
+	pSwitchToThisWindow            = user32.NewProc("SwitchToThisWindow")
+	pGetCurrentThreadId            = kernel32.NewProc("GetCurrentThreadId")
+	pKeybdEvent                    = user32.NewProc("keybd_event")
+	pSetWindowPos                  = user32.NewProc("SetWindowPos")
+	pSetCursorPos                  = user32.NewProc("SetCursorPos")
+	pMouseEvent                    = user32.NewProc("mouse_event")
+	pGlobalFree                    = kernel32.NewProc("GlobalFree")
+	pGlobalSize                    = kernel32.NewProc("GlobalSize")
+	pSetWindowTextW                = user32.NewProc("SetWindowTextW")
+	pGetSystemMetrics              = user32.NewProc("GetSystemMetrics")
+	pGetDpiForWindow               = user32.NewProc("GetDpiForWindow")
+	pInvalidateRect                = user32.NewProc("InvalidateRect")
+	pEnumWindows                   = user32.NewProc("EnumWindows")
+	pEnumPropsExW                  = user32.NewProc("EnumPropsExW")
+	pOpenClipboard                 = user32.NewProc("OpenClipboard")
+	pEmptyClipboard                = user32.NewProc("EmptyClipboard")
+	pCloseClipboard                = user32.NewProc("CloseClipboard")
+	pSetClipboardData              = user32.NewProc("SetClipboardData")
+	pRegisterClipboardFormatW      = user32.NewProc("RegisterClipboardFormatW")
+	pIsClipboardFormatAvailable    = user32.NewProc("IsClipboardFormatAvailable")
+	pGlobalAlloc                   = kernel32.NewProc("GlobalAlloc")
+	pGlobalLock                    = kernel32.NewProc("GlobalLock")
+	pGlobalUnlock                  = kernel32.NewProc("GlobalUnlock")
 
-	pCreateMenu       = user32.NewProc("CreateMenu")
-	pCreatePopupMenu  = user32.NewProc("CreatePopupMenu")
-	pAppendMenuW      = user32.NewProc("AppendMenuW")
-	pSetMenu          = user32.NewProc("SetMenu")
-	pDrawMenuBar      = user32.NewProc("DrawMenuBar")
-	pGetOpenFileNameW = comdlg32.NewProc("GetOpenFileNameW")
-	pGetSaveFileNameW = comdlg32.NewProc("GetSaveFileNameW")
-	pIsDialogMessageW  = user32.NewProc("IsDialogMessageW")
-	pEnableWindow      = user32.NewProc("EnableWindow")
-	pGetWindowTextW    = user32.NewProc("GetWindowTextW")
+	pCreateMenu           = user32.NewProc("CreateMenu")
+	pCreatePopupMenu      = user32.NewProc("CreatePopupMenu")
+	pAppendMenuW          = user32.NewProc("AppendMenuW")
+	pSetMenu              = user32.NewProc("SetMenu")
+	pDrawMenuBar          = user32.NewProc("DrawMenuBar")
+	pGetOpenFileNameW     = comdlg32.NewProc("GetOpenFileNameW")
+	pGetSaveFileNameW     = comdlg32.NewProc("GetSaveFileNameW")
+	pIsDialogMessageW     = user32.NewProc("IsDialogMessageW")
+	pEnableWindow         = user32.NewProc("EnableWindow")
+	pGetWindowTextW       = user32.NewProc("GetWindowTextW")
 	pGetWindowTextLengthW = user32.NewProc("GetWindowTextLengthW")
-	pPeekMessageW      = user32.NewProc("PeekMessageW")
-	pWaitMessage       = user32.NewProc("WaitMessage")
+	pPeekMessageW         = user32.NewProc("PeekMessageW")
+	pWaitMessage          = user32.NewProc("WaitMessage")
 	pCommDlgExtendedError = comdlg32.NewProc("CommDlgExtendedError")
 
 	pGetModuleHandleW = kernel32.NewProc("GetModuleHandleW")
@@ -105,7 +105,7 @@ const (
 	WS_SYSMENU          = 0x00080000
 	WS_EX_DLGMODALFRAME = 0x00000001
 	WS_EX_CONTROLPARENT = 0x00010000
-	WS_EX_CLIENTEDGE   = 0x00000200
+	WS_EX_CLIENTEDGE    = 0x00000200
 	BS_DEFPUSHBUTTON    = 0x0001
 	BS_PUSHBUTTON       = 0x0000
 	ES_AUTOHSCROLL      = 0x0080
@@ -121,10 +121,10 @@ const (
 	ES_WANTRETURN  = 0x1000
 	ES_NOHIDESEL   = 0x0100
 
-	WM_CREATE    = 0x0001
-	WM_DESTROY   = 0x0002
-	WM_SIZE      = 0x0005
-	WM_SETFOCUS  = 0x0007
+	WM_CREATE     = 0x0001
+	WM_DESTROY    = 0x0002
+	WM_SIZE       = 0x0005
+	WM_SETFOCUS   = 0x0007
 	WM_ACTIVATE   = 0x0006
 	WM_NOTIFY     = 0x004E
 	WM_CHAR       = 0x0102
@@ -132,63 +132,63 @@ const (
 	WM_MOUSEWHEEL = 0x020A
 	WM_KEYUP      = 0x0101
 	WM_SETICON    = 0x0080
-	WM_CLOSE     = 0x0010
-	WM_SETTEXT   = 0x000C
-	WM_GETTEXT   = 0x000D
-	WM_KEYDOWN   = 0x0100
-	WM_TIMER     = 0x0113
-	WM_COMMAND   = 0x0111
-	WM_SETFONT   = 0x0030
-	WM_SETREDRAW = 0x000B
+	WM_CLOSE      = 0x0010
+	WM_SETTEXT    = 0x000C
+	WM_GETTEXT    = 0x000D
+	WM_KEYDOWN    = 0x0100
+	WM_TIMER      = 0x0113
+	WM_COMMAND    = 0x0111
+	WM_SETFONT    = 0x0030
+	WM_SETREDRAW  = 0x000B
 	WM_GETDLGCODE = 0x0087
 
-	EN_CHANGE = 0x0300
+	EN_CHANGE  = 0x0300
 	ENM_CHANGE = 0x00000001
-	EN_UPDATE = 0x0400
+	EN_UPDATE  = 0x0400
 
-	EM_GETSEL             = 0x00B0
-	EM_LINESCROLL         = 0x00B6
-	EM_SETREADONLY        = 0x0400 + 31
-	EM_SETCHARFORMAT      = 0x0400 + 68
-	EM_SETBKGNDCOLOR      = 0x0400 + 67
-	EM_SETEVENTMASK       = 0x0400 + 69
-	EM_GETEVENTMASK       = 0x0400 + 70
-	EM_GETTEXTEX          = 0x0400 + 94
-	EM_GETTEXTLENGTHEX    = 0x0400 + 95
-	EM_STREAMIN           = 0x0400 + 73
-	EM_SETTARGETDEVICE    = 0x0400 + 72
-	EM_SETOPTIONS         = 0x0400 + 77
-	EM_GETOPTIONS         = 0x0400 + 78
+	EM_GETSEL              = 0x00B0
+	EM_LINESCROLL          = 0x00B6
+	EM_SETREADONLY         = 0x0400 + 31
+	EM_SETCHARFORMAT       = 0x0400 + 68
+	EM_SETBKGNDCOLOR       = 0x0400 + 67
+	EM_SETEVENTMASK        = 0x0400 + 69
+	EM_GETEVENTMASK        = 0x0400 + 70
+	EM_GETTEXTEX           = 0x0400 + 94
+	EM_GETTEXTLENGTHEX     = 0x0400 + 95
+	EM_STREAMIN            = 0x0400 + 73
+	EM_SETTARGETDEVICE     = 0x0400 + 72
+	EM_SETOPTIONS          = 0x0400 + 77
+	EM_GETOPTIONS          = 0x0400 + 78
 	EM_GETFIRSTVISIBLELINE = 0x00CE
-	EM_SETTEXTEX          = 0x0400 + 97
-	EM_AUTOURLDETECT      = 0x0400 + 91
-	EM_EXSETSEL           = 0x0400 + 55
-	EM_SETSEL             = 0x00B1
-	EM_SETRECT            = 0x00B3
-	EM_SETUNDOLIMIT       = 0x0400 + 82
-	EM_SETPARAFORMAT      = 0x0400 + 71
-	EM_LINEFROMCHAR       = 0x00C9
-	EM_GETLINECOUNT       = 0x00BA
-	EM_EXGETSEL           = 0x0400 + 52
-	EM_REPLACESEL         = 0x00C2
-	WM_CUT                = 0x0300
-	WM_COPY               = 0x0301
-	WM_PASTE              = 0x0302
-	GMEM_MOVEABLE         = 0x0042
+	EM_SETTEXTEX           = 0x0400 + 97
+	EM_AUTOURLDETECT       = 0x0400 + 91
+	EM_EXSETSEL            = 0x0400 + 55
+	EM_SETSEL              = 0x00B1
+	EM_SETRECT             = 0x00B3
+	EM_SETUNDOLIMIT        = 0x0400 + 82
+	EM_SETPARAFORMAT       = 0x0400 + 71
+	EM_LINEFROMCHAR        = 0x00C9
+	EM_GETLINECOUNT        = 0x00BA
+	EM_EXGETSEL            = 0x0400 + 52
+	EM_REPLACESEL          = 0x00C2
+	WM_CUT                 = 0x0300
+	WM_COPY                = 0x0301
+	WM_PASTE               = 0x0302
+	GMEM_MOVEABLE          = 0x0042
 
 	SCF_SELECTION = 1
 	SCF_WORD      = 2
 	SCF_ALL       = 4
 
-	CFM_BOLD     = 0x00000001
-	CFM_ITALIC   = 0x00000002
+	CFM_BOLD      = 0x00000001
+	CFM_ITALIC    = 0x00000002
 	CFM_UNDERLINE = 0x00000004
 	CFM_STRIKEOUT = 0x00000008
-	CFM_FACE     = 0x20000000
-	CFM_SIZE     = 0x80000000
-	CFM_COLOR    = 0x40000000
-	CFM_CHARSET  = 0x08000000
-	CFM_WEIGHT   = 0x00400000
+	CFM_FACE      = 0x20000000
+	CFM_SIZE      = 0x80000000
+	CFM_COLOR     = 0x40000000
+	CFM_CHARSET   = 0x08000000
+	CFM_WEIGHT    = 0x00400000
 	CFM_BACKCOLOR = 0x04000000
 
 	CFE_BOLD      = 0x0001
@@ -206,12 +206,12 @@ const (
 	IDC_IBEAM       = 32513
 	IDI_APPLICATION = 32512
 
-	FW_NORMAL       = 400
-	DEFAULT_CHARSET = 1
+	FW_NORMAL         = 400
+	DEFAULT_CHARSET   = 1
 	CLEARTYPE_QUALITY = 5
-	FIXED_PITCH     = 1
-	FF_MODERN       = 48
-	FF_SWISS        = 32
+	FIXED_PITCH       = 1
+	FF_MODERN         = 48
+	FF_SWISS          = 32
 
 	ERROR_SUCCESS = 0
 
@@ -225,12 +225,12 @@ const (
 	OFN_NOCHANGEDIR     = 0x00000008
 	OFN_EXPLORER        = 0x00080000
 
-	MB_YESNOCANCEL = 0x00000003
-	MB_YESNO       = 0x00000004
+	MB_YESNOCANCEL  = 0x00000003
+	MB_YESNO        = 0x00000004
 	MB_ICONQUESTION = 0x00000020
 	MB_ICONWARNING  = 0x00000030
-	IDYES = 6
-	IDNO  = 7
+	IDYES           = 6
+	IDNO            = 7
 )
 
 // Structs ------------------------------------------------------------------
@@ -302,30 +302,30 @@ type SCROLLINFO struct {
 }
 
 type PARAFORMAT2 struct {
-	CbSize          uint32
-	DwMask          uint32
-	WNumbering      uint16
-	WEffects        uint16
-	DxStartIndent   int32
-	DxRightIndent   int32
-	DxOffset        int32
-	WAlignment      uint16
-	CTabCount       int16
-	RgxTabs         [32]int32
-	DySpaceBefore   int32
-	DySpaceAfter    int32
-	DyLineSpacing   int32
-	SStyle          int16
+	CbSize           uint32
+	DwMask           uint32
+	WNumbering       uint16
+	WEffects         uint16
+	DxStartIndent    int32
+	DxRightIndent    int32
+	DxOffset         int32
+	WAlignment       uint16
+	CTabCount        int16
+	RgxTabs          [32]int32
+	DySpaceBefore    int32
+	DySpaceAfter     int32
+	DyLineSpacing    int32
+	SStyle           int16
 	BLineSpacingRule uint8
-	BOutlineLevel   uint8
-	WShadingWeight  uint16
-	WShadingStyle   uint16
-	WNumberingStart uint16
-	WNumberingStyle uint16
-	WNumberingTab   uint16
-	WBorderSpace    uint16
-	WBorderWidth    uint16
-	WBorders        uint16
+	BOutlineLevel    uint8
+	WShadingWeight   uint16
+	WShadingStyle    uint16
+	WNumberingStart  uint16
+	WNumberingStyle  uint16
+	WNumberingTab    uint16
+	WBorderSpace     uint16
+	WBorderWidth     uint16
+	WBorders         uint16
 }
 
 type CHARRANGE struct {
